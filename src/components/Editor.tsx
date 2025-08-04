@@ -3,7 +3,7 @@ import { Editor } from "@tinymce/tinymce-react";
 import type { Editor as TinyMCEEditor } from "tinymce";
 
 const TinyEditor: React.FC = () => {
-  const editorRef = useRef<TinyMCEEditor | null>(null); // ✅ avoid using any
+  const editorRef = useRef<TinyMCEEditor | null>(null);
   const [content, setContent] = useState<string>("");
 
   const handleSubmit = () => {
@@ -39,11 +39,12 @@ const TinyEditor: React.FC = () => {
             "link",
             "textcolor",
             "colorpicker",
+            "fullscreen", // ✅ enable fullscreen plugin
           ],
           toolbar:
             "undo redo | formatselect | bold italic backcolor forecolor | " +
             "alignleft aligncenter alignright alignjustify | " +
-            "bullist numlist outdent indent | removeformat | image | table | code",
+            "bullist numlist outdent indent | removeformat | image | table | code | fullscreen", // ✅ add button
           automatic_uploads: true,
           file_picker_types: "image",
           file_picker_callback: (cb, _value, meta) => {
@@ -95,9 +96,7 @@ const TinyEditor: React.FC = () => {
       {/* Preview Section */}
       {content && (
         <div className="mt-10">
-          <h2 className="text-xl font-semibold mb-2 text-gray-700">
-            Preview:
-          </h2>
+          <h2 className="text-xl font-semibold mb-2 text-gray-700">Preview:</h2>
           <div
             className="prose prose-sm max-w-none border border-gray-300 rounded p-4"
             dangerouslySetInnerHTML={{ __html: content }}
