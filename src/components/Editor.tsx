@@ -39,12 +39,12 @@ const TinyEditor: React.FC = () => {
             "link",
             "textcolor",
             "colorpicker",
-            "fullscreen", // ✅ enable fullscreen plugin
+            "fullscreen",
           ],
           toolbar:
             "undo redo | formatselect | bold italic backcolor forecolor | " +
             "alignleft aligncenter alignright alignjustify | " +
-            "bullist numlist outdent indent | removeformat | image | table | code | fullscreen", // ✅ add button
+            "bullist numlist outdent indent | removeformat | image | table | code | fullscreen | abbr",
           automatic_uploads: true,
           file_picker_types: "image",
           file_picker_callback: (cb, _value, meta) => {
@@ -67,6 +67,24 @@ const TinyEditor: React.FC = () => {
 
               input.click();
             }
+          },
+          setup: (editor) => {
+            editor.ui.registry.addButton("abbr", {
+              text: "Abbr",
+              tooltip: "Insert Abbreviation with Tooltip",
+              onAction: () => {
+                const selectedText = editor.selection.getContent({ format: "text" });
+                if (!selectedText) {
+                  alert("Please select a short form text first (like 'PDF').");
+                  return;
+                }
+                const fullForm = prompt(`Enter the full form for "${selectedText}":`);
+                if (fullForm) {
+                  const html = `<span title="${fullForm}" style="text-decoration: underline;">${selectedText}</span>`;
+                  editor.insertContent(html);
+                }
+              },
+            });
           },
           content_style: `
             body {
