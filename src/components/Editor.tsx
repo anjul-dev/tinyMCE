@@ -1,15 +1,17 @@
 import React, { useRef, useState } from "react";
 import { Editor } from "@tinymce/tinymce-react";
+import type { Editor as TinyMCEEditor } from "tinymce";
 
 const TinyEditor: React.FC = () => {
-  const editorRef = useRef<any>(null);
+  const editorRef = useRef<TinyMCEEditor | null>(null); // ✅ avoid using any
   const [content, setContent] = useState<string>("");
 
   const handleSubmit = () => {
-    if (editorRef.current) {
-      const html = editorRef.current.getContent();
+    const editor = editorRef.current;
+    if (editor) {
+      const html = editor.getContent();
       console.log("Content submitted:", html);
-      setContent(html); // Simulate API post
+      setContent(html);
     }
   };
 
@@ -21,8 +23,10 @@ const TinyEditor: React.FC = () => {
 
       {/* TinyMCE Editor */}
       <Editor
-        apiKey="s39hbpjunpob6ul1ig3zabqmtgzcexd3crvc81fsr888uc7l" // your key
-        onInit={(_, editor) => (editorRef.current = editor)}
+        apiKey="s39hbpjunpob6ul1ig3zabqmtgzcexd3crvc81fsr888uc7l"
+        onInit={(_, editor) => {
+          editorRef.current = editor;
+        }}
         init={{
           onboarding: false,
           height: 500,
@@ -40,50 +44,44 @@ const TinyEditor: React.FC = () => {
             "undo redo | formatselect | bold italic backcolor forecolor | " +
             "alignleft aligncenter alignright alignjustify | " +
             "bullist numlist outdent indent | removeformat | image | table | code",
-
           automatic_uploads: true,
           file_picker_types: "image",
-
-          // For choosing an image from device
-          file_picker_callback: (cb, value, meta) => {
+          file_picker_callback: (cb, _value, meta) => {
             if (meta.filetype === "image") {
               const input = document.createElement("input");
               input.setAttribute("type", "file");
               input.setAttribute("accept", "image/*");
 
-              input.onchange = function () {
+              input.onchange = () => {
                 const file = input.files?.[0];
+                if (!file) return;
+
                 const reader = new FileReader();
-
-                reader.onload = function () {
+                reader.onload = () => {
                   const base64 = reader.result as string;
-                  cb(base64, { title: file?.name });
+                  cb(base64, { title: file.name });
                 };
-
-                if (file) {
-                  reader.readAsDataURL(file);
-                }
+                reader.readAsDataURL(file);
               };
 
               input.click();
             }
           },
-
           content_style: `
-    body {
-        font-family: Helvetica, Arial, sans-serif;
-        font-size: 14px;
-    }
-    table {
-        width: 100%;
-        border-collapse: collapse;
-        border: 2px solid #ccc;
-    }
-    th, td {
-        border: 2px solid #ccc;
-        padding: 8px;
-    }
-  `,
+            body {
+              font-family: Helvetica, Arial, sans-serif;
+              font-size: 14px;
+            }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              border: 2px solid #ccc;
+            }
+            th, td {
+              border: 2px solid #ccc;
+              padding: 8px;
+            }
+          `,
         }}
       />
 
@@ -97,7 +95,9 @@ const TinyEditor: React.FC = () => {
       {/* Preview Section */}
       {content && (
         <div className="mt-10">
-          <h2 className="text-xl font-semibold mb-2 text-gray-700">Preview:</h2>
+          <h2 className="text-xl font-semibold mb-2 text-gray-700">
+            Preview:
+          </h2>
           <div
             className="prose prose-sm max-w-none border border-gray-300 rounded p-4"
             dangerouslySetInnerHTML={{ __html: content }}
