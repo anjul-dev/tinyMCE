@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { RichTextEditor } from "./components/TextEditor";
 // import TinyEditor from "./components/Editor";
-// import Nothing from "./Plate/PlateEdito";
 
 function App() {
   const [htmlOutput, setHtmlOutput] = useState<string>("");
@@ -9,27 +8,21 @@ function App() {
 
   const handleSave = (content: any) => {
     console.log("Content saved:", content);
-    // Here you can implement your save logic
-    // For example, send to API, save to localStorage, etc.
   };
 
   const handleChange = (content: any) => {
     console.log("Content changed:", content);
     setEditorContent(content);
-    // Here you can implement your change handling logic
   };
 
   const handleHtmlChange = (html: string) => {
     console.log("HTML output:", html);
     setHtmlOutput(html);
-    // Send this HTML to your backend
   };
 
   return (
     // <>
-    //   {/* <TinyEditor /> */
-    //   }
-    //   {/* <Nothing /> */}
+    //   {/* <TinyEditor /> */}
     // </>
     <div className="min-h-screen bg-gray-50">
       <RichTextEditor
