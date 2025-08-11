@@ -1,33 +1,28 @@
-import { useState } from "react";
-import { RichTextEditor } from "./components/TextEditor";
-import SlateEditor from "./components/Example";
-import FullSlateEditor from "./components/Example";
-import TinyEditor from "./components/Editor";
+// import { useState } from "react";
+// import { RichTextEditor } from "./components/TextEditor";
+// import SlateEditor from "./components/Example";
+// import FullSlateEditor from "./components/Example";
+// import TinyEditor from "./components/Editor";
 import SunEditorComponent from "./components/SunEdiotr";
 // import TinyEditor from "./components/Editor";
-// import Nothing from "./Plate/PlateEdito";
 
 function App() {
-  const [htmlOutput, setHtmlOutput] = useState<string>("");
-  const [editorContent, setEditorContent] = useState<any>(null);
+  // const [htmlOutput, setHtmlOutput] = useState<string>("");
+  // const [editorContent, setEditorContent] = useState<any>(null);
 
-  const handleSave = (content: any) => {
-    console.log("Content saved:", content);
-    // Here you can implement your save logic
-    // For example, send to API, save to localStorage, etc.
-  };
+  // const handleSave = (content: any) => {
+  //   console.log("Content saved:", content);
+  // };
 
-  const handleChange = (content: any) => {
-    console.log("Content changed:", content);
-    setEditorContent(content);
-    // Here you can implement your change handling logic
-  };
+  // const handleChange = (content: any) => {
+  //   console.log("Content changed:", content);
+  //   setEditorContent(content);
+  // };
 
-  const handleHtmlChange = (html: string) => {
-    console.log("HTML output:", html);
-    setHtmlOutput(html);
-    // Send this HTML to your backend
-  };
+  // const handleHtmlChange = (html: string) => {
+  //   console.log("HTML output:", html);
+  //   setHtmlOutput(html);
+  // };
 
   // const [html, setHtml] = useState("");
 
