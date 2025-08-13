@@ -149,7 +149,7 @@
 } */
 
 /* ----- Abbr tooltip ----- */
-.abbr-tooltip { position: relative; display: inline-block; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+/* .abbr-tooltip { position: relative; display: inline-block; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
 .abbr-tooltip .abbr-short { font-weight: 600; }
 .abbr-tooltip .abbr-full {
   visibility: hidden;
@@ -173,7 +173,6 @@
 .abbr-tooltip:hover .abbr-full { visibility: visible; opacity: 1; transform: translateX(-50%) translateY(0); pointer-events:auto; }
 .abbr-tooltip.show-full .abbr-full { visibility: visible; opacity: 1; transform: translateX(-50%) translateY(0); pointer-events:auto; }
 
-/* anchor visuals */
 .anchor-point {
   display: inline-block;
   width: 0;
@@ -194,7 +193,6 @@
   border-radius: 8px;
 }
 
-/* hover box & table styles kept */
 .hover-box {
   background-color: #fffbe6;
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
@@ -207,4 +205,4 @@
   box-shadow: 0 8px 16px rgba(0, 0, 0, 0.25);
 }
 .sun-editor-editable table { width:100%; border-collapse:collapse; border:2px solid #ccc; }
-.sun-editor-editable th, .sun-editor-editable td { border:2px solid #ccc; padding:8px; }
+.sun-editor-editable th, .sun-editor-editable td { border:2px solid #ccc; padding:8px; } */

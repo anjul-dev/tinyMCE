@@ -2,8 +2,8 @@ import React, {
   useRef,
   useState,
   useEffect,
-  MouseEvent,
-  KeyboardEvent,
+  type MouseEvent,
+  // type KeyboardEvent,
 } from "react";
 import SunEditor from "suneditor-react";
 import "suneditor/dist/css/suneditor.min.css";
@@ -98,6 +98,32 @@ const SunEditorComponent: React.FC = () => {
         ? (element.closest("td, th") as HTMLTableCellElement)
         : null;
     } catch (err) {
+      console.error("Error getting selected cell:", err);
+      return null;
+    }
+  };
+
+  const getSelectedHoverBox = (
+    editorCoreLike: SunEditorCore | SunEditorInstance
+  ): HTMLElement | null => {
+    try {
+      const core =
+        (editorCoreLike as SunEditorInstance).core ||
+        (editorCoreLike as SunEditorCore);
+      const selection =
+        (typeof core.getSelection === "function" && core.getSelection()) ||
+        (window.getSelection ? window.getSelection() : null);
+      if (!selection) return null;
+      let node: Node | null = selection.anchorNode || selection.focusNode;
+      if (!node) return null;
+      if (node.nodeType === 3) node = node.parentElement;
+      if (!node) return null;
+      const element = node as Element;
+      return element.closest
+        ? (element.closest(".hover-box") as HTMLElement)
+        : null;
+    } catch (err) {
+      console.error("Error getting selected hover box:", err);
       return null;
     }
   };
@@ -129,6 +155,7 @@ const SunEditorComponent: React.FC = () => {
         sel.addRange(range);
       }
     } catch (e) {
+      console.error("Error setting caret after node:", e);
       // ignore
     }
   };
@@ -136,29 +163,82 @@ const SunEditorComponent: React.FC = () => {
   // ---------- Custom buttons ----------
   const customButtonHandlers: CustomButtonHandlers = {
     hoverArea: (editor: SunEditorInstance) => {
-      const core = editor.core || editor;
+      const core = editor.core as SunEditorCore;
       const id = `hover-box-${Date.now()}`;
       const hoverBoxHTML = `
-    <div id="${id}" class="hover-box" contenteditable="true" style="min-height:50px;">
-      <p>Click here to edit your hover content...</p>
-    </div>
-    <p><br></p>
-  `;
+        <div id="${id}" class="hover-box" contenteditable="true" style="min-height:50px; margin: 0;">
+          <p>Click here to edit your hover content...</p>
+        </div>
+        <p><br></p>
+      `;
       core.execCommand("insertHTML", false, hoverBoxHTML);
 
-      // Ensure class is present after insertion (in case SunEditor strips it)
+      // Better caret positioning after insertion
       setTimeout(() => {
         const el = document.getElementById(id);
         if (el) {
           el.classList.add("hover-box");
-          setCaretAfter(el);
+          // Position caret in the paragraph after the hover box
+          const nextP = el.nextElementSibling;
+          if (nextP && nextP.tagName === "P") {
+            const range = document.createRange();
+            const sel = window.getSelection();
+            range.setStart(nextP, 0);
+            range.collapse(true);
+            sel?.removeAllRanges();
+            sel?.addRange(range);
+          }
         }
-      }, 30);
+      }, 50); // Increased timeout
+    },
+
+    hoverBoxBgColor: (editor: SunEditorInstance) => {
+      const core = editor.core || editor;
+      const hoverBox = getSelectedHoverBox(core);
+      if (!hoverBox) {
+        alert(
+          "Place the caret or select text inside a hover box and try again."
+        );
+        return;
+      }
+      const currentBg = getComputedStyle(hoverBox).backgroundColor;
+      const input = document.createElement("input");
+      input.type = "color";
+      try {
+        input.value = rgbToHex(currentBg || "#C9CADa");
+      } catch {
+        input.value = "#C9CADa";
+      }
+      input.style.position = "fixed";
+      input.style.top = "-22px";
+      input.style.left = "65%";
+      input.style.transform = "translate(-50%, -50%)";
+      input.style.zIndex = "9999"; // keep on top
+      input.style.border = "none";
+      input.style.width = "80px";
+      input.style.height = "50px";
+      input.style.cursor = "pointer";
+      input.style.background = "transparent";
+      document.body.appendChild(input);
+
+      const onInput = (ev: Event) => {
+        const target = ev.target as HTMLInputElement;
+        const color = target.value;
+        hoverBox.style.backgroundColor = color;
+      };
+      const cleanup = () => {
+        input.removeEventListener("input", onInput);
+        input.removeEventListener("change", cleanup);
+        if (input.parentElement) input.parentElement.removeChild(input);
+      };
+      input.addEventListener("input", onInput);
+      input.addEventListener("change", cleanup);
+      input.click();
     },
 
     // ABBR: short form + full form tooltip (hover & click)
     abbr: (editor: SunEditorInstance) => {
-      const core = editor.core || editor;
+      const core = editor.core as SunEditorCore;
       const sel = core.getSelection && core.getSelection();
       const selectedText = (sel && sel.toString()) || "";
 
@@ -196,7 +276,7 @@ const SunEditorComponent: React.FC = () => {
     },
 
     anchor: (editor: SunEditorInstance) => {
-      const core = editor.core || editor;
+      const core = editor.core as SunEditorCore;
       const id = prompt("Enter anchor ID (e.g., table1):");
       if (!id) return;
       const clean = id.trim().replace(/[^a-zA-Z0-9-_]/g, "");
@@ -208,7 +288,7 @@ const SunEditorComponent: React.FC = () => {
     },
 
     anchorLink: (editor: SunEditorInstance) => {
-      const core = editor.core || editor;
+      const core = editor.core as SunEditorCore;
       const selText =
         (core.getSelection && core.getSelection()?.toString()) || "";
       const text = selText || prompt("Enter link text:");
@@ -237,11 +317,19 @@ const SunEditorComponent: React.FC = () => {
       input.type = "color";
       try {
         input.value = rgbToHex(currentBg || "#ffffff");
-      } catch (e) {
+      } catch {
         input.value = "#ffffff";
       }
       input.style.position = "fixed";
-      input.style.left = "-9999px";
+      input.style.top = "-22px";
+      input.style.left = "65%";
+      input.style.transform = "translate(-50%, -50%)";
+      input.style.zIndex = "9999"; // keep on top
+      input.style.border = "none";
+      input.style.width = "80px";
+      input.style.height = "50px";
+      input.style.cursor = "pointer";
+      input.style.background = "transparent";
       document.body.appendChild(input);
 
       const onInput = (ev: Event) => {
@@ -276,33 +364,99 @@ const SunEditorComponent: React.FC = () => {
 
   customBtnHandlersRef.current = customButtonHandlers;
 
+  const custumStyle = `
+  <style>
+    p, h1, h2, h3, h4, h5, h6, span, div { margin: 0; padding: 0; }
+    .sun-editor-editable p { margin: 0 !important; margin-bottom: 0 !important; }
+    .sun-editor-editable div { margin: 0 !important; }
+    .abbr-tooltip { position: relative; display: inline-block; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+    .abbr-tooltip .abbr-short { font-weight: 600; }
+    .abbr-tooltip .abbr-full {
+      visibility: hidden;
+      opacity: 0;
+      transition: opacity .18s ease, transform .18s ease;
+      transform: translateY(4px);
+      position: absolute;
+      left: 50%;
+      top: calc(100% + 8px);
+      transform: translateX(-50%) translateY(4px);
+      white-space: nowrap;
+      padding: 6px 10px;
+      border-radius: 6px;
+      box-shadow: 0 6px 14px rgba(0,0,0,0.18);
+      background: #222;
+      color: #fff;
+      z-index: 9999;
+      pointer-events:none;
+      font-size: 13px;
+    }
+    .abbr-tooltip:hover .abbr-full { visibility: visible; opacity: 1; transform: translateX(50%) translateY(50%); pointer-events:auto; }
+    .abbr-tooltip.show-full .abbr-full { visibility: visible; opacity: 1; transform: translateX(50%) translateY(50%); pointer-events:auto; }
+
+    /* anchor visuals */
+    .anchor-point {
+      display: inline-block;
+      width: 1;
+      height: 1;
+      background-color: black;
+      overflow: hidden;
+      padding: 10px;
+      margin: 0;
+      border: none;
+      box-shadow: 0 0 0 6px rgba(25,118,210,0.12), 0 6px 16px rgba(0,0,0,0.12);
+    }
+
+    .anchor-link { color:#1976d2; text-decoration:underline; cursor:pointer; }
+
+    .anchor-highlight {
+      transition: box-shadow .25s ease, transform .25s ease;
+      box-shadow: 0 0 0 6px rgba(25,118,210,0.12), 0 6px 16px rgba(0,0,0,0.12);
+      transform: translateY(-2px);
+      border-radius: 8px;
+    }
+
+    /* hover box & table styles kept */
+    .hover-box {
+      background-color: #C9CADa;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+      border-radius: 2px;
+      padding: 6px !important;
+      margin: 0 !important;
+    }
+    .hover-box p { margin: 0 !important; }
+    .sun-editor-editable table { width:100%; border-collapse:collapse; border:2px solid #ccc; }
+    .sun-editor-editable th, .sun-editor-editable td { border:2px solid #ccc; padding:8px; }
+  </style>
+`;
   // ---------- Submit / preview click ----------
-  // Solution 2: Alternative way to get content that bypasses SunEditor's filtering
-const handleSubmit = (): void => {
-  const inst = editorInstanceRef.current;
-  if (!inst) return;
-  
-  // Try to get raw HTML directly from the WYSIWYG element
-  const core = inst.core || inst;
-  const wysiwyg = core?.context?.element?.wysiwyg;
-  
-  let html = "";
-  
-  if (wysiwyg) {
-    // Get innerHTML directly from the WYSIWYG editor (unfiltered)
-    html = wysiwyg.innerHTML;
-    console.log("Raw WYSIWYG content:", html);
-  } else {
-    // Fallback to the filtered content
-    html = (inst.getContents && inst.getContents()) ||
-           (inst.core && inst.core.getContents && inst.core.getContents()) ||
-           "";
-    console.log("Filtered content:", html);
-  }
-  
-  setContent(html);
-  console.log("Content submitted:", html);
-};
+  const handleSubmit = (): void => {
+    const inst = editorInstanceRef.current;
+    if (!inst) return;
+
+    // Try to get raw HTML directly from the WYSIWYG element
+    const core = (inst.core as SunEditorCore) || inst;
+    const wysiwyg = core?.context?.element?.wysiwyg;
+
+    let html = "";
+
+    if (wysiwyg) {
+      // Get innerHTML directly from the WYSIWYG editor (unfiltered)
+      html = wysiwyg.innerHTML;
+      console.log("Raw WYSIWYG content:", html);
+    } else {
+      // Fallback to the filtered content
+      html =
+        (inst.getContents && inst.getContents()) ||
+        (inst.core && inst.core.getContents && inst.core.getContents()) ||
+        "";
+      console.log("Filtered content:", html);
+    }
+
+    const styledHtml = `${custumStyle}<div class="sun-editor-editable">${html}</div>`;
+
+    setContent(styledHtml);
+    console.log("Content submitted:", html);
+  };
 
   // preview click: intercept anchor links and center anchor
   const handlePreviewClick = (e: MouseEvent<HTMLDivElement>): void => {
@@ -322,7 +476,42 @@ const handleSubmit = (): void => {
   const handleEditorReady = (sunEditor: SunEditorInstance): void => {
     editorInstanceRef.current = sunEditor;
     setIsEditorReady(true);
-    const core = sunEditor.core || sunEditor;
+    const core = (sunEditor.core as SunEditorCore) || sunEditor;
+    if (core?.context?.element?.wysiwyg) {
+      core.context.element.wysiwyg.addEventListener("keydown", (e) => {
+        if (e.key === "Backspace") {
+          const sel = window.getSelection();
+          if (!sel || sel.rangeCount === 0) return;
+
+          const range = sel.getRangeAt(0);
+          if (!range.collapsed) return; // Only handle when nothing is selected
+
+          // Check if we're at the start of a text node or element
+          if (range.startOffset === 0) {
+            const container = range.startContainer;
+            let previousSibling = null;
+
+            if (container.nodeType === Node.TEXT_NODE) {
+              // If we're in a text node, check the previous sibling of the parent
+              previousSibling = container.parentNode?.previousSibling;
+            } else {
+              // If we're in an element, check its previous sibling
+              previousSibling = container.previousSibling;
+            }
+
+            // Check if the previous element is a hover box
+            if (
+              previousSibling &&
+              previousSibling.nodeType === Node.ELEMENT_NODE &&
+              (previousSibling as Element).classList?.contains("hover-box")
+            ) {
+              e.preventDefault();
+              previousSibling.remove();
+            }
+          }
+        }
+      });
+    }
 
     // Keep previous behavior: after inserting table add a blank paragraph
     if (core?.context?.element?.wysiwyg) {
@@ -348,7 +537,7 @@ const handleSubmit = (): void => {
     if (!isEditorReady || !editorInstanceRef.current) return;
 
     const editor = editorInstanceRef.current;
-    const core = editor.core || editor;
+    const core = (editor.core as SunEditorCore) || editor;
     const toolbar = core.context.element.toolbar;
     const editorWysiwyg = core.context.element.wysiwyg;
     toolbarRef.current = toolbar;
@@ -356,6 +545,9 @@ const handleSubmit = (): void => {
     const btnMap: { [key: string]: HTMLElement | null } = {
       hoverArea: toolbar.querySelector(
         '[data-command="hoverArea"], [title="Insert Hover Info Box"]'
+      ),
+      hoverBoxBgColor: toolbar.querySelector(
+        '[data-command="hoverBoxBgColor"], [title="Set Hover Box Background Color"]'
       ),
       abbr: toolbar.querySelector(
         '[data-command="abbr"], [title="Insert Abbreviation with Tooltip"]'
@@ -378,8 +570,9 @@ const handleSubmit = (): void => {
       const handler = (ev: Event) => {
         ev.preventDefault();
         ev.stopPropagation();
-        customBtnHandlersRef.current[name] &&
+        if (customBtnHandlersRef.current[name]) {
           customBtnHandlersRef.current[name](editor);
+        }
       };
       btn.addEventListener("click", handler);
       attached.push({ btn, handler });
@@ -388,6 +581,11 @@ const handleSubmit = (): void => {
     if (btnMap.cellBgColor) {
       (btnMap.cellBgColor as HTMLButtonElement).style.display = "none";
       (btnMap.cellBgColor as HTMLButtonElement).disabled = true;
+    }
+
+    if (btnMap.hoverBoxBgColor) {
+      (btnMap.hoverBoxBgColor as HTMLButtonElement).style.display = "none";
+      (btnMap.hoverBoxBgColor as HTMLButtonElement).disabled = true;
     }
 
     const onSelectionChange = (): void => {
@@ -400,6 +598,8 @@ const handleSubmit = (): void => {
             ? editorWysiwyg.contains(node.parentElement)
             : editorWysiwyg.contains(node as Node));
         const cell = insideEditor ? getSelectedCell(core) : null;
+        const hoverBox = insideEditor ? getSelectedHoverBox(core) : null;
+
         if (btnMap.cellBgColor) {
           const cellBgBtn = btnMap.cellBgColor as HTMLButtonElement;
           if (cell) {
@@ -410,10 +610,68 @@ const handleSubmit = (): void => {
             cellBgBtn.disabled = true;
           }
         }
-      } catch (err) {
+
+        if (btnMap.hoverBoxBgColor) {
+          const hoverBoxBgBtn = btnMap.hoverBoxBgColor as HTMLButtonElement;
+          if (hoverBox) {
+            hoverBoxBgBtn.style.display = "";
+            hoverBoxBgBtn.disabled = false;
+          } else {
+            hoverBoxBgBtn.style.display = "none";
+            hoverBoxBgBtn.disabled = true;
+          }
+        }
+      } catch {
         // ignore
       }
     };
+
+    const handleBackspaceDelete = (e) => {
+      if (e.key === "Backspace") {
+        const sel = window.getSelection();
+        if (!sel || sel.rangeCount === 0) return;
+
+        const range = sel.getRangeAt(0);
+        if (!range.collapsed) return;
+
+        const startContainer = range.startContainer;
+        const startOffset = range.startOffset;
+
+        // Only proceed if we're at the beginning of a text node or empty position
+        if (startContainer.nodeType === Node.TEXT_NODE && startOffset !== 0)
+          return;
+
+        // Get all hover boxes in the editor
+        const allHoverBoxes = editorWysiwyg.querySelectorAll(".hover-box");
+
+        // Check each hover box to see if cursor is right after it
+        for (let hoverBox of allHoverBoxes) {
+          const nextSibling = hoverBox.nextSibling;
+
+          // Check various scenarios where cursor might be positioned after hover box
+          if (
+            // Cursor is in the next text node after hover box
+            (nextSibling === startContainer && startOffset === 0) ||
+            // Cursor is in a paragraph that immediately follows hover box
+            (nextSibling &&
+              nextSibling.contains &&
+              nextSibling.contains(startContainer) &&
+              startOffset === 0) ||
+            // Cursor is in an element right after hover box
+            (startContainer.nodeType === Node.ELEMENT_NODE &&
+              startContainer.previousElementSibling === hoverBox &&
+              startOffset === 0)
+          ) {
+            e.preventDefault();
+            e.stopPropagation();
+            hoverBox.remove();
+            return false;
+          }
+        }
+      }
+    };
+
+    editorWysiwyg.addEventListener("keydown", handleBackspaceDelete, true);
 
     document.addEventListener("selectionchange", onSelectionChange);
     selectionHandlerRef.current = onSelectionChange;
@@ -424,6 +682,7 @@ const handleSubmit = (): void => {
       );
       document.removeEventListener("selectionchange", onSelectionChange);
       selectionHandlerRef.current = null;
+      editorWysiwyg.removeEventListener("keydown", handleBackspaceDelete, true);
     };
   }, [isEditorReady]);
 
@@ -449,7 +708,8 @@ const handleSubmit = (): void => {
         // if this abbr is inside the editor wysiwyg, put caret after it
         const core =
           editorInstanceRef.current &&
-          (editorInstanceRef.current.core || editorInstanceRef.current);
+          ((editorInstanceRef.current.core as SunEditorCore) ||
+            editorInstanceRef.current);
         const wysiwyg = core?.context?.element?.wysiwyg;
         if (wysiwyg && wysiwyg.contains(clickedAbbr)) {
           setTimeout(() => setCaretAfter(clickedAbbr), 10);
@@ -463,7 +723,7 @@ const handleSubmit = (): void => {
         .forEach((el) => el.classList.remove("show-full"));
     };
 
-    const onKeyDown = (e: KeyboardEvent): void => {
+    const onKeyDown = (e: globalThis.KeyboardEvent): void => {
       if (e.key === "Escape") {
         document
           .querySelectorAll(".abbr-tooltip.show-full")
@@ -481,9 +741,8 @@ const handleSubmit = (): void => {
 
   // ---------- Image upload helper (unchanged) ----------
   const handleImageUploadBefore = (
-    files: FileList,
-    info: any,
-    core: SunEditorCore,
+    files: File[],
+    info: object,
     uploadHandler: UploadHandler
   ): undefined => {
     const file = files[0];
@@ -503,7 +762,7 @@ const handleSubmit = (): void => {
   // ---------- SunEditor options (keep your existing config) ----------
   const sunEditorOptions = {
     plugins,
-    height: 500,
+    height: "500px",
     buttonList: [
       ["undo", "redo"],
       ["font", "fontSize", "formatBlock"],
@@ -521,6 +780,12 @@ const handleSubmit = (): void => {
           display: "command",
           title: "Insert Hover Info Box",
           innerHTML: '<span style="font-size:12px;padding:0 4px">HA</span>',
+        },
+        {
+          name: "hoverBoxBgColor",
+          display: "command",
+          title: "Set Hover Box Background Color",
+          innerHTML: '<span style="font-size:14px;padding:0 4px">🎨</span>',
         },
         {
           name: "abbr",
@@ -547,8 +812,16 @@ const handleSubmit = (): void => {
           innerHTML: '<span style="font-size:14px;padding:0 4px">🎨</span>',
         },
       ],
-    ] as any,
-    formats: ["p", "div", "h1", "h2", "h3", "h4", "h5", "h6"],
+    ] as Array<
+      | string[]
+      | Array<{
+          name: string;
+          display: string;
+          title: string;
+          innerHTML: string;
+        }>
+    >,
+    formats: ["p", "div", "h1", "h2", "h3", "h4", "h5", "h6"] as const,
     defaultTag: "div",
     minHeight: "300px",
     showPathLabel: false,
@@ -583,6 +856,10 @@ const handleSubmit = (): void => {
         dangerouslySetInnerHTML={{
           __html: `
           /* ----- Abbr tooltip ----- */
+          p, h1, h2, h3, h4, h5, h6, span, div, { margin: 0; padding: 0; }
+          div p { margin: 0; }
+          .sun-editor-editable p { margin: 0 !important; margin-bottom: 0 !important; }
+          .sun-editor-editable div { margin: 0 !important; }
           .abbr-tooltip { position: relative; display: inline-block; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
           .abbr-tooltip .abbr-short { font-weight: 600; }
           .abbr-tooltip .abbr-full {
@@ -604,19 +881,20 @@ const handleSubmit = (): void => {
             pointer-events:none;
             font-size: 13px;
           }
-          .abbr-tooltip:hover .abbr-full { visibility: visible; opacity: 1; transform: translateX(-50%) translateY(0); pointer-events:auto; }
-          .abbr-tooltip.show-full .abbr-full { visibility: visible; opacity: 1; transform: translateX(-50%) translateY(0); pointer-events:auto; }
+          .abbr-tooltip:hover .abbr-full { visibility: visible; opacity: 1; transform: translateX(50%) translateY(50%); pointer-events:auto; }
+          .abbr-tooltip.show-full .abbr-full { visibility: visible; opacity: 1; transform: translateX(50%) translateY(50%); pointer-events:auto; }
 
           /* anchor visuals */
           .anchor-point {
             display: inline-block;
-            width: 0;
-            height: 0;
+            width: 1;
+            height: 1;
+            background-color: black;
             overflow: hidden;
-            padding: 0;
+            padding: 10px;
             margin: 0;
             border: none;
-            background: transparent;
+            box-shadow: 0 0 0 6px rgba(25,118,210,0.12), 0 6px 16px rgba(0,0,0,0.12);
           }
 
           .anchor-link { color:#1976d2; text-decoration:underline; cursor:pointer; }
@@ -630,16 +908,12 @@ const handleSubmit = (): void => {
 
           /* hover box & table styles kept */
           .hover-box {
-            background-color: #fffbe6;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
-            border-radius: 6px;
-            padding: 10px 14px;
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            background-color: #C9CADa;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+            border-radius: 2px;
+            padding: 6px !important;
           }
-          .hover-box:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.25);
-          }
+          .hover-box p { margin: 0; }
           .sun-editor-editable table { width:100%; border-collapse:collapse; border:2px solid #ccc; }
           .sun-editor-editable th, .sun-editor-editable td { border:2px solid #ccc; padding:8px; }
         `,
