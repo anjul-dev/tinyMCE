@@ -7,45 +7,23 @@ import React, {
 } from "react";
 import SunEditor from "suneditor-react";
 import "suneditor/dist/css/suneditor.min.css";
-import plugins from "suneditor/src/plugins";
-
-// Type definitions
-interface SunEditorCore {
-  getSelection(): Selection | null;
-  execCommand(command: string, showDefaultUI: boolean, value?: string): void;
-  getContents(): string;
-  context: {
-    element: {
-      wysiwyg: HTMLElement;
-      toolbar: HTMLElement;
-    };
-  };
-}
-
-interface SunEditorInstance {
-  core?: SunEditorCore;
-  getContents?(): string;
-  getSelection?(): Selection | null;
-}
-
-interface UploadResult {
-  url: string;
-  name: string;
-  size: number;
-}
-
-interface UploadHandler {
-  (result: { result: UploadResult[] }): void;
-}
-
-interface CustomButtonHandlers {
-  [key: string]: (editor: SunEditorInstance) => void;
-}
-
-interface ButtonEventHandlers {
-  btn: HTMLElement;
-  handler: (event: Event) => void;
-}
+import { createColorPicker, editorStyles, sunEditorOptions } from "./helper";
+import {
+  escapeHtml,
+  rgbToHex,
+  getSelectedCell,
+  getSelectedHoverBox,
+  setCaretAfter,
+  // scrollToAnchor,
+  handleImageUploadBefore,
+} from "./utils";
+import type {
+  ButtonEventHandlers,
+  CustomButtonHandlers,
+  SunEditorCore,
+  SunEditorInstance,
+} from "./SunEditor.type";
+import type { default as SunEditorType } from "suneditor/src/lib/core";
 
 const SunEditorComponent: React.FC = () => {
   const editorInstanceRef = useRef<SunEditorInstance | null>(null);
@@ -53,115 +31,17 @@ const SunEditorComponent: React.FC = () => {
   const selectionHandlerRef = useRef<(() => void) | null>(null);
   const customBtnHandlersRef = useRef<CustomButtonHandlers>({});
   const previewRef = useRef<HTMLDivElement | null>(null);
+  const [previewOpen, setPreviewOpen] = useState<boolean>(false);
 
   const [content, setContent] = useState<string>("");
   const [isEditorReady, setIsEditorReady] = useState<boolean>(false);
 
-  // ---------- Helpers ----------
-  const escapeHtml = (str: string = ""): string =>
-    String(str)
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&#039;");
-
-  const rgbToHex = (rgb: string): string => {
-    const m = (rgb || "").match(/\d+/g);
-    if (!m || m.length < 3) return "#ffffff";
-    const r = parseInt(m[0], 10);
-    const g = parseInt(m[1], 10);
-    const b = parseInt(m[2], 10);
-    return (
-      "#" +
-      ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1).toUpperCase()
-    );
-  };
-
-  const getSelectedCell = (
-    editorCoreLike: SunEditorCore | SunEditorInstance
-  ): HTMLTableCellElement | null => {
-    try {
-      const core =
-        (editorCoreLike as SunEditorInstance).core ||
-        (editorCoreLike as SunEditorCore);
-      const selection =
-        (typeof core.getSelection === "function" && core.getSelection()) ||
-        (window.getSelection ? window.getSelection() : null);
-      if (!selection) return null;
-      let node: Node | null = selection.anchorNode || selection.focusNode;
-      if (!node) return null;
-      if (node.nodeType === 3) node = node.parentElement;
-      if (!node) return null;
-      const element = node as Element;
-      return element.closest
-        ? (element.closest("td, th") as HTMLTableCellElement)
-        : null;
-    } catch (err) {
-      console.error("Error getting selected cell:", err);
-      return null;
-    }
-  };
-
-  const getSelectedHoverBox = (
-    editorCoreLike: SunEditorCore | SunEditorInstance
-  ): HTMLElement | null => {
-    try {
-      const core =
-        (editorCoreLike as SunEditorInstance).core ||
-        (editorCoreLike as SunEditorCore);
-      const selection =
-        (typeof core.getSelection === "function" && core.getSelection()) ||
-        (window.getSelection ? window.getSelection() : null);
-      if (!selection) return null;
-      let node: Node | null = selection.anchorNode || selection.focusNode;
-      if (!node) return null;
-      if (node.nodeType === 3) node = node.parentElement;
-      if (!node) return null;
-      const element = node as Element;
-      return element.closest
-        ? (element.closest(".hover-box") as HTMLElement)
-        : null;
-    } catch (err) {
-      console.error("Error getting selected hover box:", err);
-      return null;
-    }
-  };
-
-  // scroll anchor to center of viewport and highlight briefly
-  const scrollToAnchor = (anchorId: string): void => {
-    const el = document.getElementById(anchorId);
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    const centerY =
-      rect.top + window.scrollY - window.innerHeight / 2 + rect.height / 2;
-    window.scrollTo({ top: centerY, behavior: "smooth" });
-
-    // highlight
-    el.classList.add("anchor-highlight");
-    setTimeout(() => el.classList.remove("anchor-highlight"), 2000);
-  };
-
-  // place caret after a node (useful after inserting interactive inline widgets)
-  const setCaretAfter = (node: Node): void => {
-    if (!node) return;
-    try {
-      const range = document.createRange();
-      range.setStartAfter(node);
-      range.collapse(true);
-      const sel = window.getSelection();
-      if (sel) {
-        sel.removeAllRanges();
-        sel.addRange(range);
-      }
-    } catch (e) {
-      console.error("Error setting caret after node:", e);
-      // ignore
-    }
-  };
-
   // ---------- Custom buttons ----------
   const customButtonHandlers: CustomButtonHandlers = {
+    previewBtn: () => {
+      handleSubmit();
+      setPreviewOpen(!previewOpen);
+    },
     hoverArea: (editor: SunEditorInstance) => {
       const core = editor.core as SunEditorCore;
       const id = `hover-box-${Date.now()}`;
@@ -201,39 +81,51 @@ const SunEditorComponent: React.FC = () => {
         );
         return;
       }
-      const currentBg = getComputedStyle(hoverBox).backgroundColor;
-      const input = document.createElement("input");
-      input.type = "color";
-      try {
-        input.value = rgbToHex(currentBg || "#C9CADa");
-      } catch {
-        input.value = "#C9CADa";
-      }
-      input.style.position = "fixed";
-      input.style.top = "-22px";
-      input.style.left = "65%";
-      input.style.transform = "translate(-50%, -50%)";
-      input.style.zIndex = "9999"; // keep on top
-      input.style.border = "none";
-      input.style.width = "80px";
-      input.style.height = "50px";
-      input.style.cursor = "pointer";
-      input.style.background = "transparent";
-      document.body.appendChild(input);
 
-      const onInput = (ev: Event) => {
-        const target = ev.target as HTMLInputElement;
-        const color = target.value;
+      const currentBg = getComputedStyle(hoverBox).backgroundColor;
+      let currentColor;
+      try {
+        currentColor = rgbToHex(currentBg || "#C9CADa");
+      } catch {
+        currentColor = "#C9CADa";
+      }
+
+      createColorPicker(currentColor, (color) => {
         hoverBox.style.backgroundColor = color;
-      };
-      const cleanup = () => {
-        input.removeEventListener("input", onInput);
-        input.removeEventListener("change", cleanup);
-        if (input.parentElement) input.parentElement.removeChild(input);
-      };
-      input.addEventListener("input", onInput);
-      input.addEventListener("change", cleanup);
-      input.click();
+      });
+    },
+
+    cellBgColor: (editor: SunEditorInstance) => {
+      const core = editor.core || editor;
+      const cell = getSelectedCell(core);
+      if (!cell) {
+        alert(
+          "Place the caret or select text inside a table cell and try again."
+        );
+        return;
+      }
+
+      const currentBg = getComputedStyle(cell).backgroundColor;
+      let currentColor;
+      try {
+        currentColor = rgbToHex(currentBg || "#ffffff");
+      } catch {
+        currentColor = "#ffffff";
+      }
+
+      createColorPicker(currentColor, (color) => {
+        cell.style.backgroundColor = color;
+        cell.setAttribute("bgcolor", color);
+        const currentStyle = cell.getAttribute("style") || "";
+        const styleWithoutBg = currentStyle.replace(
+          /background-color\s*:[^;]*(;|$)/gi,
+          ""
+        );
+        cell.setAttribute(
+          "style",
+          `${styleWithoutBg}background-color: ${color};`.replace(/^;+/, "")
+        );
+      });
     },
 
     // ABBR: short form + full form tooltip (hover & click)
@@ -282,8 +174,8 @@ const SunEditorComponent: React.FC = () => {
       const clean = id.trim().replace(/[^a-zA-Z0-9-_]/g, "");
       if (!clean) return;
 
-      // Insert only the invisible marker
-      const html = `<span id="${clean}" class="anchor-point" data-anchor-id="${clean}" tabindex="-1" aria-hidden="true"></span>&nbsp;`;
+      // Insert the anchor point with both id and data-anchor-id for better compatibility
+      const html = `<span id="${clean}" class="anchor-point" data-anchor-id="${clean}" tabindex="-1" aria-hidden="true">⚓</span>&nbsp;`;
       core.execCommand("insertHTML", false, html);
     },
 
@@ -302,63 +194,9 @@ const SunEditorComponent: React.FC = () => {
       )}</a>&nbsp;`;
       core.execCommand("insertHTML", false, html);
     },
-
-    cellBgColor: (editor: SunEditorInstance) => {
-      const core = editor.core || editor;
-      const cell = getSelectedCell(core);
-      if (!cell) {
-        alert(
-          "Place the caret or select text inside a table cell and try again."
-        );
-        return;
-      }
-      const currentBg = getComputedStyle(cell).backgroundColor;
-      const input = document.createElement("input");
-      input.type = "color";
-      try {
-        input.value = rgbToHex(currentBg || "#ffffff");
-      } catch {
-        input.value = "#ffffff";
-      }
-      input.style.position = "fixed";
-      input.style.top = "-22px";
-      input.style.left = "65%";
-      input.style.transform = "translate(-50%, -50%)";
-      input.style.zIndex = "9999"; // keep on top
-      input.style.border = "none";
-      input.style.width = "80px";
-      input.style.height = "50px";
-      input.style.cursor = "pointer";
-      input.style.background = "transparent";
-      document.body.appendChild(input);
-
-      const onInput = (ev: Event) => {
-        const target = ev.target as HTMLInputElement;
-        const color = target.value;
-
-        // Set both style attribute and bgcolor attribute for better compatibility
-        cell.style.backgroundColor = color;
-        cell.setAttribute("bgcolor", color);
-
-        // Also ensure the style attribute is preserved
-        const currentStyle = cell.getAttribute("style") || "";
-        const styleWithoutBg = currentStyle.replace(
-          /background-color\s*:[^;]*(;|$)/gi,
-          ""
-        );
-        cell.setAttribute(
-          "style",
-          `${styleWithoutBg}background-color: ${color};`.replace(/^;+/, "")
-        );
-      };
-      const cleanup = () => {
-        input.removeEventListener("input", onInput);
-        input.removeEventListener("change", cleanup);
-        if (input.parentElement) input.parentElement.removeChild(input);
-      };
-      input.addEventListener("input", onInput);
-      input.addEventListener("change", cleanup);
-      input.click();
+    SaveBtn: () => {
+      console.log("Save button clicked");
+      handleSubmit();
     },
   };
 
@@ -366,66 +204,7 @@ const SunEditorComponent: React.FC = () => {
 
   const custumStyle = `
   <style>
-    p, h1, h2, h3, h4, h5, h6, span, div { margin: 0; padding: 0; }
-    .sun-editor-editable p { margin: 0 !important; margin-bottom: 0 !important; }
-    .sun-editor-editable div { margin: 0 !important; }
-    .abbr-tooltip { position: relative; display: inline-block; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
-    .abbr-tooltip .abbr-short { font-weight: 600; }
-    .abbr-tooltip .abbr-full {
-      visibility: hidden;
-      opacity: 0;
-      transition: opacity .18s ease, transform .18s ease;
-      transform: translateY(4px);
-      position: absolute;
-      left: 50%;
-      top: calc(100% + 8px);
-      transform: translateX(-50%) translateY(4px);
-      white-space: nowrap;
-      padding: 6px 10px;
-      border-radius: 6px;
-      box-shadow: 0 6px 14px rgba(0,0,0,0.18);
-      background: #222;
-      color: #fff;
-      z-index: 9999;
-      pointer-events:none;
-      font-size: 13px;
-    }
-    .abbr-tooltip:hover .abbr-full { visibility: visible; opacity: 1; transform: translateX(50%) translateY(50%); pointer-events:auto; }
-    .abbr-tooltip.show-full .abbr-full { visibility: visible; opacity: 1; transform: translateX(50%) translateY(50%); pointer-events:auto; }
-
-    /* anchor visuals */
-    .anchor-point {
-      display: inline-block;
-      width: 1;
-      height: 1;
-      background-color: black;
-      overflow: hidden;
-      padding: 10px;
-      margin: 0;
-      border: none;
-      box-shadow: 0 0 0 6px rgba(25,118,210,0.12), 0 6px 16px rgba(0,0,0,0.12);
-    }
-
-    .anchor-link { color:#1976d2; text-decoration:underline; cursor:pointer; }
-
-    .anchor-highlight {
-      transition: box-shadow .25s ease, transform .25s ease;
-      box-shadow: 0 0 0 6px rgba(25,118,210,0.12), 0 6px 16px rgba(0,0,0,0.12);
-      transform: translateY(-2px);
-      border-radius: 8px;
-    }
-
-    /* hover box & table styles kept */
-    .hover-box {
-      background-color: #C9CADa;
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
-      border-radius: 2px;
-      padding: 6px !important;
-      margin: 0 !important;
-    }
-    .hover-box p { margin: 0 !important; }
-    .sun-editor-editable table { width:100%; border-collapse:collapse; border:2px solid #ccc; }
-    .sun-editor-editable th, .sun-editor-editable td { border:2px solid #ccc; padding:8px; }
+    ${editorStyles}
   </style>
 `;
   // ---------- Submit / preview click ----------
@@ -459,24 +238,52 @@ const SunEditorComponent: React.FC = () => {
   };
 
   // preview click: intercept anchor links and center anchor
+  // Update your existing handlePreviewClick function:
   const handlePreviewClick = (e: MouseEvent<HTMLDivElement>): void => {
     const target = e.target as HTMLElement;
-    const link = target.closest("a");
-    if (!link) return;
-    const href = link.getAttribute("href") || "";
-    if (href.startsWith("#")) {
+    const link = target.closest("a.anchor-link");
+
+    if (link) {
       e.preventDefault();
-      const anchorId = href.substring(1);
-      scrollToAnchor(anchorId);
-      // window.location.href = `#${anchorId}`; // fallback to normal anchor link behavior
+      e.stopPropagation();
+
+      const href = link.getAttribute("href") || "";
+      if (href.startsWith("#")) {
+        const anchorId = href.substring(1);
+        const previewContainer = previewRef.current;
+
+        if (previewContainer) {
+          // Look for the anchor within the preview container
+          const anchorElement =
+            previewContainer.querySelector(`#${anchorId}`) ||
+            previewContainer.querySelector(`[data-anchor-id="${anchorId}"]`);
+
+          if (anchorElement) {
+            // Scroll within the preview container
+            anchorElement.scrollIntoView({
+              behavior: "smooth",
+              block: "center",
+              inline: "nearest",
+            });
+
+            // Add highlight effect
+            anchorElement.classList.add("anchor-highlight");
+            setTimeout(() => {
+              anchorElement.classList.remove("anchor-highlight");
+            }, 2000);
+          } else {
+            console.log(`Anchor with ID "${anchorId}" not found in preview`);
+          }
+        }
+      }
     }
   };
 
   // ---------- Editor ready: attach handlers for toolbar, selection watcher ----------
-  const handleEditorReady = (sunEditor: SunEditorInstance): void => {
-    editorInstanceRef.current = sunEditor;
+  const handleEditorReady = (sunEditor: SunEditorType): void => {
+    editorInstanceRef.current = sunEditor as unknown as SunEditorInstance;
     setIsEditorReady(true);
-    const core = (sunEditor.core as SunEditorCore) || sunEditor;
+    const core = (sunEditor.core as unknown as SunEditorCore) || sunEditor;
     if (core?.context?.element?.wysiwyg) {
       core.context.element.wysiwyg.addEventListener("keydown", (e) => {
         if (e.key === "Backspace") {
@@ -511,6 +318,43 @@ const SunEditorComponent: React.FC = () => {
           }
         }
       });
+      // core.context.element.wysiwyg.addEventListener("click", (e) => {
+      //   const target = e.target as HTMLElement;
+      //   const link = target.closest("a.anchor-link");
+
+      //   if (link) {
+      //     e.preventDefault();
+      //     e.stopPropagation();
+
+      //     const href = link.getAttribute("href") || "";
+      //     if (href.startsWith("#")) {
+      //       const anchorId = href.substring(1);
+      //       const wysiwyg = core.context.element.wysiwyg;
+
+      //       // Look for the anchor within the editor
+      //       const anchorElement =
+      //         wysiwyg.querySelector(`#${anchorId}`) ||
+      //         wysiwyg.querySelector(`[data-anchor-id="${anchorId}"]`);
+
+      //       if (anchorElement) {
+      //         // Scroll the anchor into view within the editor
+      //         anchorElement.scrollIntoView({
+      //           behavior: "smooth",
+      //           block: "center",
+      //           inline: "nearest",
+      //         });
+
+      //         // Add highlight effect
+      //         anchorElement.classList.add("anchor-highlight");
+      //         setTimeout(() => {
+      //           anchorElement.classList.remove("anchor-highlight");
+      //         }, 2000);
+      //       } else {
+      //         console.log(`Anchor with ID "${anchorId}" not found in editor`);
+      //       }
+      //     }
+      //   }
+      // });
     }
 
     // Keep previous behavior: after inserting table add a blank paragraph
@@ -543,6 +387,12 @@ const SunEditorComponent: React.FC = () => {
     toolbarRef.current = toolbar;
 
     const btnMap: { [key: string]: HTMLElement | null } = {
+      SaveBtn: toolbar.querySelector(
+        '[data-command="SaveBtn"], [title="Save Button"]'
+      ),
+      previewBtn: toolbar.querySelector(
+        '[data-command="previewBtn"], [title="Preview"]'
+      ),
       hoverArea: toolbar.querySelector(
         '[data-command="hoverArea"], [title="Insert Hover Info Box"]'
       ),
@@ -626,7 +476,7 @@ const SunEditorComponent: React.FC = () => {
       }
     };
 
-    const handleBackspaceDelete = (e) => {
+    const handleBackspaceDelete = (e: KeyboardEvent) => {
       if (e.key === "Backspace") {
         const sel = window.getSelection();
         if (!sel || sel.rangeCount === 0) return;
@@ -645,7 +495,7 @@ const SunEditorComponent: React.FC = () => {
         const allHoverBoxes = editorWysiwyg.querySelectorAll(".hover-box");
 
         // Check each hover box to see if cursor is right after it
-        for (let hoverBox of allHoverBoxes) {
+        for (const hoverBox of allHoverBoxes) {
           const nextSibling = hoverBox.nextSibling;
 
           // Check various scenarios where cursor might be positioned after hover box
@@ -659,7 +509,7 @@ const SunEditorComponent: React.FC = () => {
               startOffset === 0) ||
             // Cursor is in an element right after hover box
             (startContainer.nodeType === Node.ELEMENT_NODE &&
-              startContainer.previousElementSibling === hoverBox &&
+              (startContainer as Element).previousElementSibling === hoverBox &&
               startOffset === 0)
           ) {
             e.preventDefault();
@@ -739,193 +589,19 @@ const SunEditorComponent: React.FC = () => {
     };
   }, [isEditorReady]);
 
-  // ---------- Image upload helper (unchanged) ----------
-  const handleImageUploadBefore = (
-    files: File[],
-    info: object,
-    uploadHandler: UploadHandler
-  ): undefined => {
-    const file = files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      uploadHandler({
-        result: [
-          { url: reader.result as string, name: file.name, size: file.size },
-        ],
-      });
-    };
-    reader.readAsDataURL(file);
-    return undefined;
-  };
-
-  // ---------- SunEditor options (keep your existing config) ----------
-  const sunEditorOptions = {
-    plugins,
-    height: "500px",
-    buttonList: [
-      ["undo", "redo"],
-      ["font", "fontSize", "formatBlock"],
-      ["bold", "italic", "underline", "strike", "subscript", "superscript"],
-      ["fontColor", "hiliteColor"],
-      ["align", "horizontalRule", "list", "lineHeight"],
-      ["outdent", "indent"],
-      ["table", "link", "image", "video"],
-      ["showBlocks", "codeView", "preview"],
-      ["fullScreen"],
-      ["removeFormat"],
-      [
-        {
-          name: "hoverArea",
-          display: "command",
-          title: "Insert Hover Info Box",
-          innerHTML: '<span style="font-size:12px;padding:0 4px">HA</span>',
-        },
-        {
-          name: "hoverBoxBgColor",
-          display: "command",
-          title: "Set Hover Box Background Color",
-          innerHTML: '<span style="font-size:14px;padding:0 4px">🎨</span>',
-        },
-        {
-          name: "abbr",
-          display: "command",
-          title: "Insert Abbreviation with Tooltip",
-          innerHTML: '<span style="font-size:12px;padding:0 4px">Abbr</span>',
-        },
-        {
-          name: "anchor",
-          display: "command",
-          title: "Insert Anchor Point",
-          innerHTML: '<span style="font-size:14px;padding:0 4px">⚓</span>',
-        },
-        {
-          name: "anchorLink",
-          display: "command",
-          title: "Insert Link to Anchor",
-          innerHTML: '<span style="font-size:14px;padding:0 4px">🔗</span>',
-        },
-        {
-          name: "cellBgColor",
-          display: "command",
-          title: "Set Cell Background Color",
-          innerHTML: '<span style="font-size:14px;padding:0 4px">🎨</span>',
-        },
-      ],
-    ] as Array<
-      | string[]
-      | Array<{
-          name: string;
-          display: string;
-          title: string;
-          innerHTML: string;
-        }>
-    >,
-    formats: ["p", "div", "h1", "h2", "h3", "h4", "h5", "h6"] as const,
-    defaultTag: "div",
-    minHeight: "300px",
-    showPathLabel: false,
-    charCounter: true,
-    maxCharCount: 2000,
-    width: "auto",
-    maxWidth: "100%",
-    imageAccept: ".jpg, .jpeg, .png, .gif, .webp",
-    imageMultipleFile: false,
-    imageUploadUrl: null,
-    // Preserve inline styles including background colors
-    removeFormatTags: ["del", "ins"],
-    pasteTagsWhitelist:
-      "p|div|h[1-6]|ul|ol|li|table|thead|tbody|tr|th|td|a|b|strong|i|em|u|s|span|br",
-    attributesWhitelist: {
-      all: "style|class|id",
-      table: "style|class|id|cellpadding|cellspacing|border",
-      td: "style|class|id|colspan|rowspan|bgcolor",
-      th: "style|class|id|colspan|rowspan|bgcolor",
-      tr: "style|class|id|bgcolor",
-      a: "href|target|style|class|id",
-      span: "style|class|id|data-*",
-      div: "style|class|id",
-      p: "style|class|id",
-    },
-  };
-
   // ---------- Render ----------
   return (
-    <div className="p-6 max-w-5xl mx-auto bg-white min-h-screen">
+    <div className="p-6 max-w-5xl mx-auto bg-white min-h-[200px]">
       <style
         dangerouslySetInnerHTML={{
           __html: `
-          /* ----- Abbr tooltip ----- */
-          p, h1, h2, h3, h4, h5, h6, span, div, { margin: 0; padding: 0; }
-          div p { margin: 0; }
-          .sun-editor-editable p { margin: 0 !important; margin-bottom: 0 !important; }
-          .sun-editor-editable div { margin: 0 !important; }
-          .abbr-tooltip { position: relative; display: inline-block; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
-          .abbr-tooltip .abbr-short { font-weight: 600; }
-          .abbr-tooltip .abbr-full {
-            visibility: hidden;
-            opacity: 0;
-            transition: opacity .18s ease, transform .18s ease;
-            transform: translateY(4px);
-            position: absolute;
-            left: 50%;
-            top: calc(100% + 8px);
-            transform: translateX(-50%) translateY(4px);
-            white-space: nowrap;
-            padding: 6px 10px;
-            border-radius: 6px;
-            box-shadow: 0 6px 14px rgba(0,0,0,0.18);
-            background: #222;
-            color: #fff;
-            z-index: 9999;
-            pointer-events:none;
-            font-size: 13px;
-          }
-          .abbr-tooltip:hover .abbr-full { visibility: visible; opacity: 1; transform: translateX(50%) translateY(50%); pointer-events:auto; }
-          .abbr-tooltip.show-full .abbr-full { visibility: visible; opacity: 1; transform: translateX(50%) translateY(50%); pointer-events:auto; }
-
-          /* anchor visuals */
-          .anchor-point {
-            display: inline-block;
-            width: 1;
-            height: 1;
-            background-color: black;
-            overflow: hidden;
-            padding: 10px;
-            margin: 0;
-            border: none;
-            box-shadow: 0 0 0 6px rgba(25,118,210,0.12), 0 6px 16px rgba(0,0,0,0.12);
-          }
-
-          .anchor-link { color:#1976d2; text-decoration:underline; cursor:pointer; }
-
-          .anchor-highlight {
-            transition: box-shadow .25s ease, transform .25s ease;
-            box-shadow: 0 0 0 6px rgba(25,118,210,0.12), 0 6px 16px rgba(0,0,0,0.12);
-            transform: translateY(-2px);
-            border-radius: 8px;
-          }
-
-          /* hover box & table styles kept */
-          .hover-box {
-            background-color: #C9CADa;
-            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
-            border-radius: 2px;
-            padding: 6px !important;
-          }
-          .hover-box p { margin: 0; }
-          .sun-editor-editable table { width:100%; border-collapse:collapse; border:2px solid #ccc; }
-          .sun-editor-editable th, .sun-editor-editable td { border:2px solid #ccc; padding:8px; }
+          ${editorStyles}
         `,
         }}
       />
 
-      <h1 className="text-2xl font-bold mb-4 text-gray-800">
-        Admin Content Editor (SunEditor)
-      </h1>
-
       {!isEditorReady && (
-        <div className="w-full h-[500px] bg-gray-200 animate-pulse rounded mb-4" />
+        <div className="w-full h-[200px] bg-gray-200 animate-pulse rounded mb-4" />
       )}
 
       <div style={{ display: isEditorReady ? "block" : "none" }}>
@@ -933,26 +609,36 @@ const SunEditorComponent: React.FC = () => {
           getSunEditorInstance={handleEditorReady}
           setOptions={sunEditorOptions}
           onImageUploadBefore={handleImageUploadBefore}
-          height="500px"
+          height="200px"
+          defaultValue="<p>Start typing your content here...</p>"
           setDefaultStyle="font-family: Helvetica, Arial, sans-serif; font-size: 14px;"
         />
       </div>
 
-      {isEditorReady && (
+      {/* {isEditorReady && (
         <button
           onClick={handleSubmit}
           className="mt-5 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition"
         >
-          Save & Preview
+          Save & Preview  
         </button>
-      )}
+      )} */}
 
-      {content && (
-        <div className="mt-10">
-          <h2 className="text-xl font-semibold mb-2 text-gray-700">Preview:</h2>
+      {previewOpen && content && (
+        <div className="absolute top-1/2 left-1/2 z-[9999999999] w-2xl bg-white border border-gray-300 rounded shadow-lg p-4 -translate-x-1/2 -translate-y-1/2">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-semibold text-gray-700">Preview:</h2>
+            <button
+              className="border border-gray-200 px-4 py-1 rounded-md text-white bg-red-800 transition"
+              onClick={() => setPreviewOpen(false)}
+            >
+              close
+            </button>
+          </div>
+
           <div
             ref={previewRef}
-            className="sun-editor-editable max-w-none border border-gray-300 rounded p-4"
+            className="sun-editor-editable max-w-none border border-gray-300 rounded p-4 overflow-y-auto max-h-[300px]"
             dangerouslySetInnerHTML={{ __html: content }}
             onClick={handlePreviewClick}
           />
