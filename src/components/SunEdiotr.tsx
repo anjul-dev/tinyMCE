@@ -35,6 +35,7 @@ const SunEditorComponent: React.FC = () => {
 
   const [content, setContent] = useState<string>("");
   const [isEditorReady, setIsEditorReady] = useState<boolean>(false);
+  const [isEditorDisabled, setIsEditorDisabled] = useState<boolean>(false);
 
   // ---------- Custom buttons ----------
   const customButtonHandlers: CustomButtonHandlers = {
@@ -194,6 +195,42 @@ const SunEditorComponent: React.FC = () => {
       )}</a>&nbsp;`;
       core.execCommand("insertHTML", false, html);
     },
+    disableBtn: () => {
+      const newDisabledState = !isEditorDisabled;
+      setIsEditorDisabled(newDisabledState);
+
+      const editor = editorInstanceRef.current;
+      if (editor) {
+        const core = (editor.core as SunEditorCore) || editor;
+
+        // Update button text dynamically
+        const toolbar = core.context.element.toolbar;
+        const disableBtn = toolbar.querySelector('[data-command="disableBtn"]');
+        if (disableBtn) {
+          const span = disableBtn.querySelector("span");
+          if (span) {
+            span.textContent = newDisabledState ? "✅" : "🚫";
+          }
+        }
+
+        // Toggle editor functionality
+        if (core?.context?.element?.wysiwyg) {
+          core.context.element.wysiwyg.contentEditable =
+            (!newDisabledState).toString();
+
+          if (newDisabledState) {
+            core.context.element.wysiwyg.style.backgroundColor = "#f5f5f5";
+            core.context.element.wysiwyg.style.cursor = "not-allowed";
+          } else {
+            core.context.element.wysiwyg.style.backgroundColor = "";
+            core.context.element.wysiwyg.style.cursor = "";
+          }
+        }
+      }
+
+      console.log(`Editor ${newDisabledState ? "disabled" : "enabled"}`);
+    },
+
     SaveBtn: () => {
       console.log("Save button clicked");
       handleSubmit();
@@ -207,6 +244,13 @@ const SunEditorComponent: React.FC = () => {
     ${editorStyles}
   </style>
 `;
+
+  const handleContentChange = (content: string) => {
+    // Auto-save the content
+    setContent(content);
+    
+    console.log("Content auto-saved:", content);
+  };
   // ---------- Submit / preview click ----------
   const handleSubmit = (): void => {
     const inst = editorInstanceRef.current;
@@ -389,6 +433,9 @@ const SunEditorComponent: React.FC = () => {
     const btnMap: { [key: string]: HTMLElement | null } = {
       SaveBtn: toolbar.querySelector(
         '[data-command="SaveBtn"], [title="Save Button"]'
+      ),
+      disableBtn: toolbar.querySelector(
+        '[data-command="disableBtn"], [title="Toggle Editor"]'
       ),
       previewBtn: toolbar.querySelector(
         '[data-command="previewBtn"], [title="Preview"]'
@@ -609,6 +656,7 @@ const SunEditorComponent: React.FC = () => {
           getSunEditorInstance={handleEditorReady}
           setOptions={sunEditorOptions}
           onImageUploadBefore={handleImageUploadBefore}
+          onChange={handleContentChange}
           height="200px"
           defaultValue="<p>Start typing your content here...</p>"
           setDefaultStyle="font-family: Helvetica, Arial, sans-serif; font-size: 14px;"

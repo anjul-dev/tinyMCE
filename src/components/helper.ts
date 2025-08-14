@@ -223,102 +223,108 @@ export const editorStyles = `
 
 // ---------- SunEditor options (keep your existing config) ----------
 export const sunEditorOptions: SunEditorOptions = {
-    plugins,
-    height: "200px",
-    buttonList: [
-      ["undo", "redo"],
-      ["font", "fontSize", "formatBlock"],
-      ["bold", "italic", "underline", "strike", "subscript", "superscript"],
-      ["fontColor", "hiliteColor"],
-      ["align", "horizontalRule", "list", "lineHeight"],
-      ["outdent", "indent"],
-      ["table", "link", "image", "video"],
-      ["showBlocks", "codeView", "preview"],
-      ["fullScreen"],
-      ["removeFormat"],
-      [
-        {
-          name: "hoverArea",
-          display: "command",
-          title: "Insert Hover Info Box",
-          innerHTML: '<span style="font-size:12px;padding:0 4px">HA</span>',
-        },
-        {
-          name: "hoverBoxBgColor",
-          display: "command",
-          title: "Set Hover Box Background Color",
-          innerHTML: '<span style="font-size:14px;padding:0 4px">🎨</span>',
-        },
-        {
-          name: "abbr",
-          display: "command",
-          title: "Insert Abbreviation with Tooltip",
-          innerHTML: '<span style="font-size:12px;padding:0 4px">Abbr</span>',
-        },
-        {
-          name: "anchor",
-          display: "command",
-          title: "Insert Anchor Point",
-          innerHTML: '<span style="font-size:14px;padding:0 4px">⚓</span>',
-        },
-        {
-          name: "anchorLink",
-          display: "command",
-          title: "Insert Link to Anchor",
-          innerHTML: '<span style="font-size:14px;padding:0 4px">🔗</span>',
-        },
-        {
-          name: "cellBgColor",
-          display: "command",
-          title: "Set Cell Background Color",
-          innerHTML: '<span style="font-size:14px;padding:0 4px">🎨</span>',
-        },
-        {
-          name: "previewBtn",
-          display: "command",
-          title: "Preview Section",
-          innerHTML: '<span style="font-size:14px;padding:0 4px">👁️</span>',
-        },
-        {
-          name: "SaveBtn",
-          display: "command",
-          title: "Save Button",
-          innerHTML: '<span style="font-size:14px;padding:2px 4px">Save</span>',
-        },
-      ],
-    ] as Array<
-      | string[]
-      | Array<{
-          name: string;
-          display: string;
-          title: string;
-          innerHTML: string;
-        }>
-    >,
-    formats: ["p", "div", "h1", "h2", "h3", "h4", "h5", "h6", "blockquote" ],
-    defaultTag: "div",
-    minHeight: "200px",
-    showPathLabel: false,
-    charCounter: true,
-    maxCharCount: 2000,
-    width: "auto",
-    maxWidth: "100%",
-    imageAccept: ".jpg, .jpeg, .png, .gif, .webp",
-    imageMultipleFile: false,
-    imageUploadUrl: undefined,
-    // Preserve inline styles including background colors
-    // removeFormatTags: ["del", "ins"],
-    pasteTagsWhitelist:
-      "p|div|h[1-6]|ul|ol|li|table|thead|tbody|tr|th|td|a|b|strong|i|em|u|s|span|br",
-    attributesWhitelist: {
-      all: "style|class|id",
-      table: "style|class|id|cellpadding|cellspacing|border",
-      td: "style|class|id|colspan|rowspan|bgcolor",
-      th: "style|class|id|colspan|rowspan|bgcolor",
-      tr: "style|class|id|bgcolor",
-      a: "href|target|style|class|id",
-      span: "style|class|id|data-*",
-      div: "style|class|id",
-      p: "style|class|id",
-    },
-  };
+  plugins,
+  height: "200px",
+  buttonList: [
+    ["undo", "redo"],
+    ["font", "fontSize", "formatBlock"],
+    ["bold", "italic", "underline", "strike", "subscript", "superscript"],
+    ["fontColor", "hiliteColor"],
+    ["align", "horizontalRule", "list", "lineHeight"],
+    ["outdent", "indent"],
+    ["table", "link", "image", "video"],
+    ["showBlocks", "codeView", "preview"],
+    ["fullScreen"],
+    ["removeFormat"],
+    [
+      {
+        name: "hoverArea",
+        display: "command",
+        title: "Insert Hover Info Box",
+        innerHTML: '<span style="font-size:12px;padding:0 4px">HA</span>',
+      },
+      {
+        name: "hoverBoxBgColor",
+        display: "command",
+        title: "Set Hover Box Background Color",
+        innerHTML: '<span style="font-size:14px;padding:0 4px">🎨</span>',
+      },
+      {
+        name: "abbr",
+        display: "command",
+        title: "Insert Abbreviation with Tooltip",
+        innerHTML: '<span style="font-size:12px;padding:0 4px">Abbr</span>',
+      },
+      {
+        name: "anchor",
+        display: "command",
+        title: "Insert Anchor Point",
+        innerHTML: '<span style="font-size:14px;padding:0 4px">⚓</span>',
+      },
+      {
+        name: "anchorLink",
+        display: "command",
+        title: "Insert Link to Anchor",
+        innerHTML: '<span style="font-size:14px;padding:0 4px">🔗</span>',
+      },
+      {
+        name: "cellBgColor",
+        display: "command",
+        title: "Set Cell Background Color",
+        innerHTML: '<span style="font-size:14px;padding:0 4px">🎨</span>',
+      },
+      {
+        name: "previewBtn",
+        display: "command",
+        title: "Preview Section",
+        innerHTML: '<span style="font-size:14px;padding:0 4px">👁️</span>',
+      },
+      {
+        name: "SaveBtn",
+        display: "command",
+        title: "Save Button",
+        innerHTML: '<span style="font-size:14px;padding:2px 4px">Save</span>',
+      },
+      {
+        name: "disableBtn",
+        display: "command",
+        title: "Toggle Editor",
+        innerHTML: '<span style="font-size:14px;padding:2px 4px">🚫</span>',
+      },
+    ],
+  ] as Array<
+    | string[]
+    | Array<{
+        name: string;
+        display: string;
+        title: string;
+        innerHTML: string;
+      }>
+  >,
+  formats: ["p", "div", "h1", "h2", "h3", "h4", "h5", "h6", "blockquote"],
+  defaultTag: "div",
+  minHeight: "200px",
+  showPathLabel: false,
+  charCounter: true,
+  maxCharCount: 2000,
+  width: "auto",
+  maxWidth: "100%",
+  imageAccept: ".jpg, .jpeg, .png, .gif, .webp",
+  imageMultipleFile: false,
+  imageUploadUrl: undefined,
+  // Preserve inline styles including background colors
+  // removeFormatTags: ["del", "ins"],
+  pasteTagsWhitelist:
+    "p|div|h[1-6]|ul|ol|li|table|thead|tbody|tr|th|td|a|b|strong|i|em|u|s|span|br",
+  attributesWhitelist: {
+    all: "style|class|id",
+    table: "style|class|id|cellpadding|cellspacing|border",
+    td: "style|class|id|colspan|rowspan|bgcolor",
+    th: "style|class|id|colspan|rowspan|bgcolor",
+    tr: "style|class|id|bgcolor",
+    a: "href|target|style|class|id",
+    span: "style|class|id|data-*",
+    div: "style|class|id",
+    p: "style|class|id",
+  },
+};
