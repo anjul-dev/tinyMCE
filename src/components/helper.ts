@@ -190,18 +190,16 @@ export const editorStyles = `
     /* anchor visuals */
     .anchor-point {
     display: inline-block;
-    width: 1;
-    height: 1;
+    width: 1px;
+    height: 0;
     background-color: black;
     overflow: hidden;
-    padding: 10px;
     margin: 0;
     border: none;
     box-shadow: 0 0 0 6px rgba(25,118,210,0.12), 0 6px 16px rgba(0,0,0,0.12);
     }
 
     .anchor-link { color:#1976d2; text-decoration:underline; cursor:pointer; }
-
     .anchor-highlight {
     transition: box-shadow .25s ease, transform .25s ease;
     box-shadow: 0 0 0 6px rgba(25,118,210,0.12), 0 6px 16px rgba(0,0,0,0.12);

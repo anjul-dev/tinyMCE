@@ -2,7 +2,7 @@ import React, {
   useRef,
   useState,
   useEffect,
-  type MouseEvent,
+  // type MouseEvent,
   // type KeyboardEvent,
 } from "react";
 import SunEditor from "suneditor-react";
@@ -176,7 +176,7 @@ const SunEditorComponent: React.FC = () => {
       if (!clean) return;
 
       // Insert the anchor point with both id and data-anchor-id for better compatibility
-      const html = `<span id="${clean}" class="anchor-point" data-anchor-id="${clean}" tabindex="-1" aria-hidden="true">⚓</span>&nbsp;`;
+      const html = `<span id="${clean}" class="anchor-point" data-anchor-id="${clean}" tabindex="-1" aria-hidden="true"></span>&nbsp;`;
       core.execCommand("insertHTML", false, html);
     },
 
@@ -269,28 +269,62 @@ const SunEditorComponent: React.FC = () => {
       // Add onclick handler to images
       html = html.replace(/<img([^>]*?)>/gi, (_match, attributes) => {
         return `<img${attributes} onclick="(function(src){
-          let existingModal=document.getElementById('image-modal-overlay');
-          if(existingModal) existingModal.remove();
-          const overlay=document.createElement('div');
-          overlay.id='image-modal-overlay';
-          overlay.style.cssText='position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.8);z-index:9999999999;display:flex;justify-content:center;align-items:center;cursor:pointer;';
-          const closeBtn=document.createElement('div');
-          closeBtn.innerHTML='×';
-          closeBtn.style.cssText='position:absolute;top:20px;right:30px;color:white;font-size:40px;cursor:pointer;z-index:100000;';
-          closeBtn.onclick=function(){overlay.remove()};
-          const img=document.createElement('img');
-          img.src=src;
-          img.style.cssText='max-width:100%;max-height:100%;object-fit:contain;border-radius:8px;';
-          img.onclick=function(e){e.stopPropagation()};
-          overlay.appendChild(closeBtn);
-          overlay.appendChild(img);
-          overlay.onclick=function(){overlay.remove()};
-          const handleEscape=function(e){ if(e.key==='Escape'){ overlay.remove(); document.removeEventListener('keydown',handleEscape); }};
-          document.addEventListener('keydown',handleEscape);
-          document.body.appendChild(overlay);
-        })(this.src)" style="cursor:pointer; ">`;
+        let existingModal=document.getElementById('image-modal-overlay');
+        if(existingModal) existingModal.remove();
+        const overlay=document.createElement('div');
+        overlay.id='image-modal-overlay';
+        overlay.style.cssText='position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.8);z-index:9999999999;display:flex;justify-content:center;align-items:center;cursor:pointer;';
+        const closeBtn=document.createElement('div');
+        closeBtn.innerHTML='×';
+        closeBtn.style.cssText='position:absolute;top:20px;right:30px;color:white;font-size:40px;cursor:pointer;z-index:100000;';
+        closeBtn.onclick=function(){overlay.remove()};
+        const img=document.createElement('img');
+        img.src=src;
+        img.style.cssText='max-width:100%;max-height:100%;object-fit:contain;border-radius:8px;';
+        img.onclick=function(e){e.stopPropagation()};
+        overlay.appendChild(closeBtn);
+        overlay.appendChild(img);
+        overlay.onclick=function(){overlay.remove()};
+        const handleEscape=function(e){ if(e.key==='Escape'){ overlay.remove(); document.removeEventListener('keydown',handleEscape); }};
+        document.addEventListener('keydown',handleEscape);
+        document.body.appendChild(overlay);
+      })(this.src)" style="cursor:pointer;">`;
       });
 
+      // Add onclick handler to anchor links
+      html = html.replace(
+        /<a([^>]*?)class="anchor-link"([^>]*?)>/gi,
+        (_match, beforeClass, afterClass) => {
+          return `<a${beforeClass}class="anchor-link"${afterClass} onclick="(function(href, element){
+          if(!href.startsWith('#')) return true;
+          const anchorId=href.substring(1);
+          
+          // Find the container (look for closest .sun-editor-editable)
+          let container = element.closest('.sun-editor-editable');
+          if(!container) container = document.body;
+          
+          const targetElement=container.querySelector('#'+anchorId)||container.querySelector('[data-anchor-id=\"'+anchorId+'\"]');
+          if(targetElement){
+            // Use container scroll instead of scrollIntoView
+            const containerRect = container.getBoundingClientRect();
+            const targetRect = targetElement.getBoundingClientRect();
+            const scrollTop = container.scrollTop + (targetRect.top - containerRect.top) - (container.clientHeight / 2);
+            
+            container.scrollTo({
+              top: scrollTop,
+              behavior: 'smooth'
+            });
+            
+            targetElement.style.backgroundColor='#ffff99';
+            targetElement.style.transition='background-color 0.3s ease';
+            setTimeout(function(){
+              targetElement.style.backgroundColor='';
+            },2000);
+          }
+          return false;
+        })(this.href, this); return false;">`;
+        }
+      );
     } else {
       // Fallback to the filtered content
       html =
@@ -299,51 +333,53 @@ const SunEditorComponent: React.FC = () => {
         "";
     }
 
-    const styledHtml = `${custumStyle}<div class="sun-editor-editable">${html}</div>`;
+    const styledHtml = `${custumStyle}<style>.anchor-point {
+      display: inline;
+      width: 0;
+      height: 0;
+      overflow: hidden;
+      visibility: hidden;
+    }</style><div class="sun-editor-editable">${html}</div>`;
 
     setContent(styledHtml);
     console.log("Content submitted:", styledHtml);
   };
 
-  // preview click: intercept anchor links and center anchor
-  // Update your existing handlePreviewClick function:
-  const handlePreviewClick = (e: MouseEvent<HTMLDivElement>): void => {
-    const target = e.target as HTMLElement;
-    const link = target.closest("a.anchor-link");
+  const handlePreviewClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const link = (e.target as HTMLElement).closest(
+      "a.anchor-link"
+    ) as HTMLAnchorElement;
+    if (!link) return;
 
-    if (link) {
-      e.preventDefault();
-      e.stopPropagation();
+    const href = link.getAttribute("href") || "";
+    if (!href.startsWith("#")) return;
 
-      const href = link.getAttribute("href") || "";
-      if (href.startsWith("#")) {
-        const anchorId = href.substring(1);
-        const previewContainer = previewRef.current;
+    e.preventDefault();
+    e.stopPropagation();
 
-        if (previewContainer) {
-          // Look for the anchor within the preview container
-          const anchorElement =
-            previewContainer.querySelector(`#${anchorId}`) ||
-            previewContainer.querySelector(`[data-anchor-id="${anchorId}"]`);
+    const anchorId = href.substring(1);
+    const container = previewRef.current;
+    if (!container) return;
 
-          if (anchorElement) {
-            // Scroll within the preview container
-            anchorElement.scrollIntoView({
-              behavior: "smooth",
-              block: "center",
-              inline: "nearest",
-            });
+    const targetElement =
+      container.querySelector(`#${anchorId}`) ||
+      container.querySelector(`[data-anchor-id="${anchorId}"]`);
 
-            // Add highlight effect
-            anchorElement.classList.add("anchor-highlight");
-            setTimeout(() => {
-              anchorElement.classList.remove("anchor-highlight");
-            }, 2000);
-          } else {
-            console.log(`Anchor with ID "${anchorId}" not found in preview`);
-          }
-        }
-      }
+    if (targetElement) {
+      const containerRect = container.getBoundingClientRect();
+      const targetRect = targetElement.getBoundingClientRect();
+      const scrollTop =
+        container.scrollTop +
+        (targetRect.top - containerRect.top) -
+        container.clientHeight / 2;
+
+      container.scrollTo({ top: scrollTop, behavior: "smooth" });
+
+      targetElement.classList.add("anchor-highlight");
+      setTimeout(
+        () => targetElement.classList.remove("anchor-highlight"),
+        2000
+      );
     }
   };
 
@@ -662,32 +698,33 @@ const SunEditorComponent: React.FC = () => {
 
   // ---------- Render ----------
   return (
-    <div className="p-6 max-w-5xl mx-auto bg-white min-h-[200px]">
-      <style
-        dangerouslySetInnerHTML={{
-          __html: `
+    <>
+      <div className="p-6 max-w-5xl mx-auto bg-white min-h-[200px]">
+        <style
+          dangerouslySetInnerHTML={{
+            __html: `
           ${editorStyles}
         `,
-        }}
-      />
-
-      {!isEditorReady && (
-        <div className="w-full h-[200px] bg-gray-200 animate-pulse rounded mb-4" />
-      )}
-
-      <div style={{ display: isEditorReady ? "block" : "none" }}>
-        <SunEditor
-          getSunEditorInstance={handleEditorReady}
-          setOptions={sunEditorOptions}
-          onImageUploadBefore={handleImageUploadBefore}
-          onChange={handleContentChange}
-          height="200px"
-          defaultValue="<p>Start typing your content here...</p>"
-          setDefaultStyle="font-family: Helvetica, Arial, sans-serif; font-size: 14px;"
+          }}
         />
-      </div>
 
-      {/* {isEditorReady && (
+        {!isEditorReady && (
+          <div className="w-full h-[200px] bg-gray-200 animate-pulse rounded mb-4" />
+        )}
+
+        <div style={{ display: isEditorReady ? "block" : "none" }}>
+          <SunEditor
+            getSunEditorInstance={handleEditorReady}
+            setOptions={sunEditorOptions}
+            onImageUploadBefore={handleImageUploadBefore}
+            onChange={handleContentChange}
+            height="200px"
+            defaultValue="<p>Start typing your content here...</p>"
+            setDefaultStyle="font-family: Helvetica, Arial, sans-serif; font-size: 14px;"
+          />
+        </div>
+
+        {/* {isEditorReady && (
         <button
           onClick={handleSubmit}
           className="mt-5 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition"
@@ -695,7 +732,7 @@ const SunEditorComponent: React.FC = () => {
           Save & Preview  
         </button>
       )} */}
-
+      </div>
       {previewOpen && content && (
         <div className="absolute top-1/2 left-1/2 z-[9999999999] max-w-2xl bg-white border border-gray-300 rounded shadow-lg p-4 -translate-x-1/2 -translate-y-1/2">
           <div className="flex justify-between items-center mb-4">
@@ -716,7 +753,7 @@ const SunEditorComponent: React.FC = () => {
           />
         </div>
       )}
-    </div>
+    </>
   );
 };
 
