@@ -248,7 +248,7 @@ const SunEditorComponent: React.FC = () => {
   const handleContentChange = (content: string) => {
     // Auto-save the content
     setContent(content);
-    
+
     console.log("Content auto-saved:", content);
   };
   // ---------- Submit / preview click ----------
@@ -265,20 +265,44 @@ const SunEditorComponent: React.FC = () => {
     if (wysiwyg) {
       // Get innerHTML directly from the WYSIWYG editor (unfiltered)
       html = wysiwyg.innerHTML;
-      console.log("Raw WYSIWYG content:", html);
+
+      // Add onclick handler to images
+      html = html.replace(/<img([^>]*?)>/gi, (_match, attributes) => {
+        return `<img${attributes} onclick="(function(src){
+          let existingModal=document.getElementById('image-modal-overlay');
+          if(existingModal) existingModal.remove();
+          const overlay=document.createElement('div');
+          overlay.id='image-modal-overlay';
+          overlay.style.cssText='position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.8);z-index:9999999999;display:flex;justify-content:center;align-items:center;cursor:pointer;';
+          const closeBtn=document.createElement('div');
+          closeBtn.innerHTML='×';
+          closeBtn.style.cssText='position:absolute;top:20px;right:30px;color:white;font-size:40px;cursor:pointer;z-index:100000;';
+          closeBtn.onclick=function(){overlay.remove()};
+          const img=document.createElement('img');
+          img.src=src;
+          img.style.cssText='max-width:100%;max-height:100%;object-fit:contain;border-radius:8px;';
+          img.onclick=function(e){e.stopPropagation()};
+          overlay.appendChild(closeBtn);
+          overlay.appendChild(img);
+          overlay.onclick=function(){overlay.remove()};
+          const handleEscape=function(e){ if(e.key==='Escape'){ overlay.remove(); document.removeEventListener('keydown',handleEscape); }};
+          document.addEventListener('keydown',handleEscape);
+          document.body.appendChild(overlay);
+        })(this.src)" style="cursor:pointer; ">`;
+      });
+
     } else {
       // Fallback to the filtered content
       html =
         (inst.getContents && inst.getContents()) ||
         (inst.core && inst.core.getContents && inst.core.getContents()) ||
         "";
-      console.log("Filtered content:", html);
     }
 
     const styledHtml = `${custumStyle}<div class="sun-editor-editable">${html}</div>`;
 
     setContent(styledHtml);
-    console.log("Content submitted:", html);
+    console.log("Content submitted:", styledHtml);
   };
 
   // preview click: intercept anchor links and center anchor
@@ -673,7 +697,7 @@ const SunEditorComponent: React.FC = () => {
       )} */}
 
       {previewOpen && content && (
-        <div className="absolute top-1/2 left-1/2 z-[9999999999] w-2xl bg-white border border-gray-300 rounded shadow-lg p-4 -translate-x-1/2 -translate-y-1/2">
+        <div className="absolute top-1/2 left-1/2 z-[9999999999] max-w-2xl bg-white border border-gray-300 rounded shadow-lg p-4 -translate-x-1/2 -translate-y-1/2">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-semibold text-gray-700">Preview:</h2>
             <button
