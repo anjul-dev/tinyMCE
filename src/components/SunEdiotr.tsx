@@ -245,7 +245,7 @@ const SunEditorComponent: React.FC = () => {
     ${editorStyles}
   </style>
 `;
-  const handleSubmit = (): void => {
+  const handleSubmit = (inOnChange: boolean): void => {
     const inst = editorInstanceRef.current;
     if (!inst) return;
 
@@ -325,9 +325,13 @@ const SunEditorComponent: React.FC = () => {
         (inst.core && inst.core.getContents && inst.core.getContents()) ||
         "";
     }
-
-    const styledHtml = `${custumStyle}<div class="sun-editor-editable">${html}</div>`;
-
+    const anchorFinalCSS = `.anchor-point { display: inline; width: 0 !important; height: 0; overflow: hidden; visibility: hidden; }`;
+    let styledHtml = "";
+    if (inOnChange) {
+      styledHtml = `${custumStyle}${anchorFinalCSS}<div class="sun-editor-editable">${html}</div>`;
+    } else {
+      styledHtml = `${custumStyle}<div class="sun-editor-editable">${html}</div>`;
+    }
     setContent(styledHtml);
     console.log("Content submitted:", styledHtml);
   };
@@ -704,7 +708,7 @@ const SunEditorComponent: React.FC = () => {
             getSunEditorInstance={handleEditorReady}
             setOptions={sunEditorOptions}
             onImageUploadBefore={handleImageUploadBefore}
-            onChange={() => { handleSubmit(); }}
+            onChange={() => { handleSubmit(true); }}
             height="200px"
             defaultValue="<p>Start typing your content here...</p>"
             setDefaultStyle="font-family: Helvetica, Arial, sans-serif; font-size: 14px;"
@@ -723,7 +727,7 @@ const SunEditorComponent: React.FC = () => {
 
       
       {previewOpen && content && (
-        <div className="absolute top-1/2 left-1/2 z-[9999999999] max-w-4xl bg-white border border-gray-300 rounded shadow-lg p-4 -translate-x-1/2 -translate-y-1/2">
+        <div className="absolute top-1/3 left-1/2 z-[9999999999] max-w-4xl bg-white border border-gray-300 rounded shadow-lg p-4 -translate-x-1/2 -translate-y-1/2">
           <style
             dangerouslySetInnerHTML={{
               __html: `
