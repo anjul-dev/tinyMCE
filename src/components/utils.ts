@@ -125,3 +125,143 @@ export const setCaretAfter = (node: Node): void => {
     reader.readAsDataURL(file);
     return undefined;
   };
+
+  // Replace your handleBackspaceDelete function with this comprehensive version:
+
+export const handleBackspaceDelete = (e: KeyboardEvent) => {
+  if (e.key === "Backspace") {
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return;
+
+    const range = sel.getRangeAt(0);
+    if (!range.collapsed) return; // Only handle when nothing is selected
+
+    const startContainer = range.startContainer;
+    const startOffset = range.startOffset;
+
+    // Helper function to find the closest hover box before current position
+    const findPreviousHoverBox = (node: Node, offset: number): Element | null => {
+      let current: Node | null = node;
+      let currentOffset = offset;
+
+      while (current) {
+        // If we're in a text node at the beginning
+        if (current.nodeType === Node.TEXT_NODE && currentOffset === 0) {
+          // Check previous sibling
+          let prev = current.previousSibling;
+          while (prev) {
+            if (prev.nodeType === Node.ELEMENT_NODE) {
+              const element = prev as Element;
+              if (element.classList?.contains("hover-box")) {
+                return element;
+              }
+              // If it's another element, check if it contains a hover box at the end
+              const lastHoverBox = element.querySelector(".hover-box:last-of-type");
+              if (lastHoverBox && element.lastElementChild === lastHoverBox) {
+                return lastHoverBox as Element;
+              }
+              return null; // Found non-hover-box element, stop searching
+            }
+            prev = prev.previousSibling;
+          }
+          
+          // Move up to parent
+          current = current.parentNode;
+          currentOffset = 0;
+        }
+        // If we're in an element at the beginning
+        else if (current.nodeType === Node.ELEMENT_NODE && currentOffset === 0) {
+          const element = current as Element;
+          
+          // Check if this element itself follows a hover box
+          let prev = element.previousSibling;
+          while (prev) {
+            if (prev.nodeType === Node.ELEMENT_NODE) {
+              const prevElement = prev as Element;
+              if (prevElement.classList?.contains("hover-box")) {
+                return prevElement;
+              }
+              return null; // Found non-hover-box element
+            }
+            // Skip empty text nodes
+            if (prev.nodeType === Node.TEXT_NODE && prev.textContent?.trim() === '') {
+              prev = prev.previousSibling;
+              continue;
+            }
+            return null;
+          }
+          
+          // Check previous element sibling of parent
+          const prevElementSibling = element.previousElementSibling;
+          if (prevElementSibling?.classList?.contains("hover-box")) {
+            return prevElementSibling;
+          }
+          
+          // Move up to parent
+          current = current.parentNode;
+          currentOffset = 0;
+        }
+        else {
+          // Not at the beginning, no hover box to delete
+          return null;
+        }
+      }
+      
+      return null;
+    };
+
+    // Find the hover box that should be deleted
+    const hoverBoxToDelete = findPreviousHoverBox(startContainer, startOffset);
+    
+    if (hoverBoxToDelete) {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      // Position cursor after the hover box before deleting it
+      const range = document.createRange();
+      range.setStartAfter(hoverBoxToDelete);
+      range.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(range);
+      
+      // Delete the hover box
+      hoverBoxToDelete.remove();
+      
+      return false;
+    }
+
+    // Additional check: if cursor is actually inside a hover box content
+    // and we're at the very beginning, delete the hover box instead of editing it
+    let parentHoverBox = startContainer.parentNode;
+    while (parentHoverBox && parentHoverBox.nodeType === Node.ELEMENT_NODE) {
+      if ((parentHoverBox as Element).classList?.contains("hover-box")) {
+        // Check if we're at the very beginning of the hover box content
+        const hoverBoxElement = parentHoverBox as Element;
+        const firstChild = hoverBoxElement.firstChild;
+        
+        if (firstChild && 
+            ((firstChild === startContainer && startOffset === 0) ||
+             (firstChild.nodeType === Node.ELEMENT_NODE && 
+              firstChild.contains(startContainer) && startOffset === 0))) {
+          
+          e.preventDefault();
+          e.stopPropagation();
+          
+          // Position cursor before the hover box
+          const range = document.createRange();
+          range.setStartBefore(hoverBoxElement);
+          range.collapse(true);
+          sel.removeAllRanges();
+          sel.addRange(range);
+          
+          // Delete the hover box
+          hoverBoxElement.remove();
+          
+          return false;
+        }
+        break;
+      }
+      parentHoverBox = parentHoverBox.parentNode;
+    }
+  }
+};
