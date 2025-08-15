@@ -41,7 +41,7 @@ const SunEditorComponent: React.FC = () => {
   // ---------- Custom buttons ----------
   const customButtonHandlers: CustomButtonHandlers = {
     previewBtn: () => {
-      handleSubmit();
+      handleSubmit(false);
       setPreviewOpen(!previewOpen);
     },
     hoverArea: (editor: SunEditorInstance) => {
@@ -210,7 +210,7 @@ const SunEditorComponent: React.FC = () => {
         if (disableBtn) {
           const span = disableBtn.querySelector("span");
           if (span) {
-            span.textContent = newDisabledState ? "✅" : "🚫";
+            span.textContent = newDisabledState ? "📝" : "🚫";
           }
         }
 
@@ -234,7 +234,7 @@ const SunEditorComponent: React.FC = () => {
 
     SaveBtn: () => {
       console.log("Save button clicked");
-      handleSubmit();
+      handleSubmit(false);
     },
   };
 
