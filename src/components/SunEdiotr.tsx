@@ -379,96 +379,25 @@ const SunEditorComponent: React.FC = () => {
     editorInstanceRef.current = sunEditor as unknown as SunEditorInstance;
     setIsEditorReady(true);
     const core = (sunEditor.core as unknown as SunEditorCore) || sunEditor;
-    if (core?.context?.element?.wysiwyg) {
-      // core.context.element.wysiwyg.addEventListener("keydown", (e) => {
-      //   if (e.key === "Backspace") {
-      //     const sel = window.getSelection();
-      //     if (!sel || sel.rangeCount === 0) return;
-
-      //     const range = sel.getRangeAt(0);
-      //     if (!range.collapsed) return; // Only handle when nothing is selected
-
-      //     // Check if we're at the start of a text node or element
-      //     if (range.startOffset === 0) {
-      //       const container = range.startContainer;
-      //       let previousSibling = null;
-
-      //       if (container.nodeType === Node.TEXT_NODE) {
-      //         // If we're in a text node, check the previous sibling of the parent
-      //         previousSibling = container.parentNode?.previousSibling;
-      //       } else {
-      //         // If we're in an element, check its previous sibling
-      //         previousSibling = container.previousSibling;
-      //       }
-
-      //       // Check if the previous element is a hover box
-      //       if (
-      //         previousSibling &&
-      //         previousSibling.nodeType === Node.ELEMENT_NODE &&
-      //         (previousSibling as Element).classList?.contains("hover-box")
-      //       ) {
-      //         e.preventDefault();
-      //         previousSibling.remove();
-      //       }
-      //     }
-      //   }
-      // });
-      // core.context.element.wysiwyg.addEventListener("click", (e) => {
-      //   const target = e.target as HTMLElement;
-      //   const link = target.closest("a.anchor-link");
-
-      //   if (link) {
-      //     e.preventDefault();
-      //     e.stopPropagation();
-
-      //     const href = link.getAttribute("href") || "";
-      //     if (href.startsWith("#")) {
-      //       const anchorId = href.substring(1);
-      //       const wysiwyg = core.context.element.wysiwyg;
-
-      //       // Look for the anchor within the editor
-      //       const anchorElement =
-      //         wysiwyg.querySelector(`#${anchorId}`) ||
-      //         wysiwyg.querySelector(`[data-anchor-id="${anchorId}"]`);
-
-      //       if (anchorElement) {
-      //         // Scroll the anchor into view within the editor
-      //         anchorElement.scrollIntoView({
-      //           behavior: "smooth",
-      //           block: "center",
-      //           inline: "nearest",
-      //         });
-
-      //         // Add highlight effect
-      //         anchorElement.classList.add("anchor-highlight");
-      //         setTimeout(() => {
-      //           anchorElement.classList.remove("anchor-highlight");
-      //         }, 2000);
-      //       } else {
-      //         console.log(`Anchor with ID "${anchorId}" not found in editor`);
-      //       }
-      //     }
-      //   }
-      // });
-    }
+    
 
     // Keep previous behavior: after inserting table add a blank paragraph
-    // if (core?.context?.element?.wysiwyg) {
-    //   core.context.element.wysiwyg.addEventListener("input", () => {
-    //     const sel = core.getSelection();
-    //     if (!sel) return;
-    //     const anchorNode = sel.anchorNode as Element | null;
-    //     const table = anchorNode?.closest?.("table");
-    //     if (table) {
-    //       const nextSibling = table.nextSibling as Element | null;
-    //       if (!nextSibling || nextSibling.tagName?.toLowerCase() !== "p") {
-    //         const p = document.createElement("p");
-    //         p.innerHTML = "<br>";
-    //         table.parentNode?.insertBefore(p, table.nextSibling);
-    //       }
-    //     }
-    //   });
-    // }
+    if (core?.context?.element?.wysiwyg) {
+      core.context.element.wysiwyg.addEventListener("input", () => {
+        const sel = core.getSelection();
+        if (!sel) return;
+        const anchorNode = sel.anchorNode as Element | null;
+        const table = anchorNode?.closest?.("table");
+        if (table) {
+          const nextSibling = table.nextSibling as Element | null;
+          if (!nextSibling || nextSibling.tagName?.toLowerCase() !== "p") {
+            const p = document.createElement("p");
+            p.innerHTML = "<br>";
+            table.parentNode?.insertBefore(p, table.nextSibling);
+          }
+        }
+      });
+    }
   };
 
   // Attach toolbar buttons and selectionchange watcher
@@ -574,51 +503,6 @@ const SunEditorComponent: React.FC = () => {
       }
     };
 
-    // const handleBackspaceDelete = (e: KeyboardEvent) => {
-    //   if (e.key === "Backspace") {
-    //     const sel = window.getSelection();
-    //     if (!sel || sel.rangeCount === 0) return;
-
-    //     const range = sel.getRangeAt(0);
-    //     if (!range.collapsed) return;
-
-    //     const startContainer = range.startContainer;
-    //     const startOffset = range.startOffset;
-
-    //     // Only proceed if we're at the beginning of a text node or empty position
-    //     if (startContainer.nodeType === Node.TEXT_NODE && startOffset !== 0)
-    //       return;
-
-    //     // Get all hover boxes in the editor
-    //     const allHoverBoxes = editorWysiwyg.querySelectorAll(".hover-box");
-
-    //     // Check each hover box to see if cursor is right after it
-    //     for (const hoverBox of allHoverBoxes) {
-    //       const nextSibling = hoverBox.nextSibling;
-
-    //       // Check various scenarios where cursor might be positioned after hover box
-    //       if (
-    //         // Cursor is in the next text node after hover box
-    //         (nextSibling === startContainer && startOffset === 0) ||
-    //         // Cursor is in a paragraph that immediately follows hover box
-    //         (nextSibling &&
-    //           nextSibling.contains &&
-    //           nextSibling.contains(startContainer) &&
-    //           startOffset === 0) ||
-    //         // Cursor is in an element right after hover box
-    //         (startContainer.nodeType === Node.ELEMENT_NODE &&
-    //           (startContainer as Element).previousElementSibling === hoverBox &&
-    //           startOffset === 0)
-    //       ) {
-    //         e.preventDefault();
-    //         e.stopPropagation();
-    //         hoverBox.remove();
-    //         return false;
-    //       }
-    //     }
-    //   }
-    // };
-
     editorWysiwyg.addEventListener("keydown", handleBackspaceDelete, true);
 
     document.addEventListener("selectionchange", onSelectionChange);
@@ -714,18 +598,8 @@ const SunEditorComponent: React.FC = () => {
             setDefaultStyle="font-family: Helvetica, Arial, sans-serif; font-size: 14px;"
           />
         </div>
-
-        {/* {isEditorReady && (
-          <button
-            onClick={handleSubmit}
-            className="mt-5 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition"
-          >
-            Save & Preview  
-          </button>
-        )} */}
       </div>
 
-      
       {previewOpen && content && (
         <div className="absolute top-1/3 left-1/2 z-[9999999999] max-w-4xl bg-white border border-gray-300 rounded shadow-lg p-4 -translate-x-1/2 -translate-y-1/2">
           <style

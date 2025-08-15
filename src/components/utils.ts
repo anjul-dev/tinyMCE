@@ -139,15 +139,96 @@ export const handleBackspaceDelete = (e: KeyboardEvent) => {
     const startContainer = range.startContainer;
     const startOffset = range.startOffset;
 
-    // Helper function to find the closest hover box before current position
+    // Check if cursor is inside a hover box and handle deletion/exit
+    let currentNode: Node | null = startContainer;
+    while (currentNode) {
+      if (currentNode.nodeType === Node.ELEMENT_NODE && 
+          (currentNode as Element).classList?.contains("hover-box")) {
+        const hoverBoxElement = currentNode as Element;
+        
+        // Check if we're at the very beginning of the hover box content
+        const isAtBeginning = () => {
+          const firstTextNode = hoverBoxElement.querySelector("p")?.firstChild ||
+                                hoverBoxElement.firstChild;
+          return (startContainer === firstTextNode && startOffset === 0) ||
+                 (startContainer === hoverBoxElement && startOffset === 0);
+        };
+        
+        if (isAtBeginning()) {
+          e.preventDefault();
+          e.stopPropagation();
+          
+          // Create a paragraph after the hover box if it doesn't exist
+          let nextElement = hoverBoxElement.nextSibling;
+          if (!nextElement || 
+              (nextElement.nodeType === Node.ELEMENT_NODE && 
+               (nextElement as Element).tagName !== 'P')) {
+            const newP = document.createElement('p');
+            newP.innerHTML = '<br>';
+            hoverBoxElement.parentNode?.insertBefore(newP, hoverBoxElement.nextSibling);
+            nextElement = newP;
+          }
+          
+          // Position cursor in the next element
+          if (nextElement) {
+            const newRange = document.createRange();
+            newRange.setStart(nextElement, 0);
+            newRange.collapse(true);
+            sel.removeAllRanges();
+            sel.addRange(newRange);
+          }
+          
+          // Delete the hover box
+          hoverBoxElement.remove();
+          return false;
+        }
+        
+        // Handle Ctrl+Backspace or when hover box is empty - delete entire hover box
+        if (e.ctrlKey || hoverBoxElement.textContent?.trim() === "" || 
+            hoverBoxElement.innerHTML.trim() === "<p><br></p>" ||
+            hoverBoxElement.innerHTML.trim() === "<br>") {
+          
+          e.preventDefault();
+          e.stopPropagation();
+          
+          // Create a paragraph after the hover box if it doesn't exist
+          let nextElement = hoverBoxElement.nextSibling;
+          if (!nextElement || 
+              (nextElement.nodeType === Node.ELEMENT_NODE && 
+               (nextElement as Element).tagName !== 'P')) {
+            const newP = document.createElement('p');
+            newP.innerHTML = '<br>';
+            hoverBoxElement.parentNode?.insertBefore(newP, hoverBoxElement.nextSibling);
+            nextElement = newP;
+          }
+          
+          // Position cursor in the next element
+          if (nextElement) {
+            const newRange = document.createRange();
+            newRange.setStart(nextElement, 0);
+            newRange.collapse(true);
+            sel.removeAllRanges();
+            sel.addRange(newRange);
+          }
+          
+          // Delete the hover box
+          hoverBoxElement.remove();
+          return false;
+        }
+        
+        break; // Found hover box parent, stop looking
+      }
+      currentNode = currentNode.parentNode;
+    }
+
+    // Enhanced function to find the closest hover box before current position
     const findPreviousHoverBox = (node: Node, offset: number): Element | null => {
       let current: Node | null = node;
       let currentOffset = offset;
 
       while (current) {
-        // If we're in a text node at the beginning
         if (current.nodeType === Node.TEXT_NODE && currentOffset === 0) {
-          // Check previous sibling
+          // Look at previous siblings
           let prev = current.previousSibling;
           while (prev) {
             if (prev.nodeType === Node.ELEMENT_NODE) {
@@ -155,12 +236,12 @@ export const handleBackspaceDelete = (e: KeyboardEvent) => {
               if (element.classList?.contains("hover-box")) {
                 return element;
               }
-              // If it's another element, check if it contains a hover box at the end
+              // Check for hover box at the end of this element
               const lastHoverBox = element.querySelector(".hover-box:last-of-type");
               if (lastHoverBox && element.lastElementChild === lastHoverBox) {
                 return lastHoverBox as Element;
               }
-              return null; // Found non-hover-box element, stop searching
+              return null;
             }
             prev = prev.previousSibling;
           }
@@ -169,11 +250,10 @@ export const handleBackspaceDelete = (e: KeyboardEvent) => {
           current = current.parentNode;
           currentOffset = 0;
         }
-        // If we're in an element at the beginning
         else if (current.nodeType === Node.ELEMENT_NODE && currentOffset === 0) {
           const element = current as Element;
           
-          // Check if this element itself follows a hover box
+          // Check previous siblings
           let prev = element.previousSibling;
           while (prev) {
             if (prev.nodeType === Node.ELEMENT_NODE) {
@@ -181,7 +261,7 @@ export const handleBackspaceDelete = (e: KeyboardEvent) => {
               if (prevElement.classList?.contains("hover-box")) {
                 return prevElement;
               }
-              return null; // Found non-hover-box element
+              return null;
             }
             // Skip empty text nodes
             if (prev.nodeType === Node.TEXT_NODE && prev.textContent?.trim() === '') {
@@ -202,7 +282,6 @@ export const handleBackspaceDelete = (e: KeyboardEvent) => {
           currentOffset = 0;
         }
         else {
-          // Not at the beginning, no hover box to delete
           return null;
         }
       }
@@ -210,58 +289,80 @@ export const handleBackspaceDelete = (e: KeyboardEvent) => {
       return null;
     };
 
-    // Find the hover box that should be deleted
+    // Find and delete hover box that should be deleted
     const hoverBoxToDelete = findPreviousHoverBox(startContainer, startOffset);
     
     if (hoverBoxToDelete) {
       e.preventDefault();
       e.stopPropagation();
       
-      // Position cursor after the hover box before deleting it
-      const range = document.createRange();
-      range.setStartAfter(hoverBoxToDelete);
-      range.collapse(true);
+      // Create a paragraph where the cursor should be positioned
+      const newP = document.createElement('p');
+      newP.innerHTML = '<br>';
+      hoverBoxToDelete.parentNode?.insertBefore(newP, hoverBoxToDelete.nextSibling);
+      
+      // Position cursor in the new paragraph
+      const newRange = document.createRange();
+      newRange.setStart(newP, 0);
+      newRange.collapse(true);
       sel.removeAllRanges();
-      sel.addRange(range);
+      sel.addRange(newRange);
       
       // Delete the hover box
       hoverBoxToDelete.remove();
       
       return false;
     }
+  }
 
-    // Additional check: if cursor is actually inside a hover box content
-    // and we're at the very beginning, delete the hover box instead of editing it
-    let parentHoverBox = startContainer.parentNode;
-    while (parentHoverBox && parentHoverBox.nodeType === Node.ELEMENT_NODE) {
-      if ((parentHoverBox as Element).classList?.contains("hover-box")) {
-        // Check if we're at the very beginning of the hover box content
-        const hoverBoxElement = parentHoverBox as Element;
-        const firstChild = hoverBoxElement.firstChild;
+  // Handle Escape key to exit hover box
+  if (e.key === "Escape") {
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return;
+
+    const range = sel.getRangeAt(0);
+    const startContainer = range.startContainer;
+
+    // Check if cursor is inside a hover box
+    let currentNode: Node | null = startContainer;
+    while (currentNode) {
+      if (currentNode.nodeType === Node.ELEMENT_NODE && 
+          (currentNode as Element).classList?.contains("hover-box")) {
         
-        if (firstChild && 
-            ((firstChild === startContainer && startOffset === 0) ||
-             (firstChild.nodeType === Node.ELEMENT_NODE && 
-              firstChild.contains(startContainer) && startOffset === 0))) {
-          
-          e.preventDefault();
-          e.stopPropagation();
-          
-          // Position cursor before the hover box
-          const range = document.createRange();
-          range.setStartBefore(hoverBoxElement);
-          range.collapse(true);
-          sel.removeAllRanges();
-          sel.addRange(range);
-          
-          // Delete the hover box
-          hoverBoxElement.remove();
-          
-          return false;
+        e.preventDefault();
+        e.stopPropagation();
+        
+        const hoverBoxElement = currentNode as Element;
+        
+        // Find or create the next paragraph after hover box
+        let nextElement = hoverBoxElement.nextSibling;
+        
+        // If next element doesn't exist or is not a paragraph, create one
+        if (!nextElement || 
+            (nextElement.nodeType === Node.ELEMENT_NODE && 
+             (nextElement as Element).tagName !== 'P')) {
+          const newP = document.createElement('p');
+          newP.innerHTML = '<br>';
+          hoverBoxElement.parentNode?.insertBefore(newP, nextElement);
+          nextElement = newP;
         }
-        break;
+        
+        // Position cursor at the beginning of the next element
+        if (nextElement) {
+          const newRange = document.createRange();
+          if (nextElement.nodeType === Node.TEXT_NODE) {
+            newRange.setStart(nextElement, 0);
+          } else {
+            newRange.setStart(nextElement, 0);
+          }
+          newRange.collapse(true);
+          sel.removeAllRanges();
+          sel.addRange(newRange);
+        }
+        
+        return false;
       }
-      parentHoverBox = parentHoverBox.parentNode;
+      currentNode = currentNode.parentNode;
     }
   }
 };
